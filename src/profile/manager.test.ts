@@ -99,6 +99,28 @@ describe('ProfileManager', () => {
     expect(savedProfile.profile.technicalPreferences.languages).toContain('Rust');
   });
 
+  test('handles corrupted JSON file gracefully', async () => {
+    // Write invalid JSON to profile file
+    await fs.writeFile(TEST_PROFILE_PATH, '{ invalid json content }');
+
+    // Mock console.warn to verify it's called
+    const warnSpy = jest.spyOn(console, 'warn').mockImplementation();
+
+    const profile = await manager.load();
+
+    // Should return default profile instead of crashing
+    expect(profile.version).toBe('1.0.0');
+    expect(profile.profile.technicalPreferences.languages).toEqual([]);
+
+    // Should log a warning about corrupted file
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Profile file corrupted'),
+      expect.any(String)
+    );
+
+    warnSpy.mockRestore();
+  });
+
   test('checks if profile needs refresh (2 day threshold)', async () => {
     const profile = await manager.load();
 

@@ -21,13 +21,24 @@ export class ProfileManager {
   async load(): Promise<UserProfile> {
     try {
       const data = await fs.readFile(this.profilePath, 'utf-8');
-      return JSON.parse(data);
+      const profile = JSON.parse(data);
+      return profile;
     } catch (error) {
+      const err = error as NodeJS.ErrnoException | SyntaxError;
+
       // File doesn't exist - create default
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      if ('code' in err && err.code === 'ENOENT') {
         return this.createDefaultProfile();
       }
-      throw error;
+
+      // Corrupted JSON - log and create default
+      if (error instanceof SyntaxError) {
+        console.warn(`Profile file corrupted at ${this.profilePath}, creating default:`, error.message);
+        return this.createDefaultProfile();
+      }
+
+      // Other errors (permissions, etc.) - rethrow with context
+      throw new Error(`Failed to load profile from ${this.profilePath}: ${err.message}`);
     }
   }
 
