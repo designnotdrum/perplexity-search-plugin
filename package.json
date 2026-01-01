@@ -10,10 +10,16 @@
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "jest",
+    "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["mcp", "perplexity", "claude-code", "search"],
+  "keywords": [
+    "mcp",
+    "perplexity",
+    "claude-code",
+    "search"
+  ],
   "author": "Nick",
   "license": "MIT",
   "type": "commonjs",
@@ -22,7 +28,10 @@
     "@perplexity-ai/perplexity_ai": "^0.18.2"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.0.3",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
