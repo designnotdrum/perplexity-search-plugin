@@ -1,0 +1,17 @@
+{
+  "name": "perplexity-search",
+  "version": "1.0.0",
+  "description": "Web search via Perplexity AI with smart context detection",
+  "author": {
+    "name": "Nick Mason"
+  },
+  "license": "MIT",
+  "keywords": ["perplexity", "search", "mcp", "web-search"],
+  "mcpServers": {
+    "perplexity-search": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/index.js"]
+    }
+  },
+  "skills": "./skills/"
+}
