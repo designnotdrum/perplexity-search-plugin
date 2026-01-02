@@ -52,9 +52,15 @@ async function promptForConfig() {
 }
 
 async function main() {
-  // If no config, prompt for it
+  // If no config and running in a TTY, prompt for it
   if (!existsSync(configPath)) {
-    await promptForConfig();
+    if (process.stdin.isTTY) {
+      await promptForConfig();
+    } else {
+      // Non-interactive - just log and continue with local-only
+      console.error('[shared-memory] No config found. Running with local-only storage.');
+      console.error('[shared-memory] To configure Mem0, run: node ' + __filename);
+    }
   }
 
   // Start the MCP server
