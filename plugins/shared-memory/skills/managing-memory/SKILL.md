@@ -6,9 +6,27 @@ allowed-tools:
   - mcp__shared-memory__search_memory
   - mcp__shared-memory__list_memories
   - mcp__shared-memory__delete_memory
+  - Bash
+  - Read
 ---
 
 # Managing Memory
+
+## First-Run Setup Check
+
+**IMPORTANT**: Before using memory tools, check if Mem0 is configured:
+
+```bash
+cat ~/.config/brain-jar/config.json 2>/dev/null || echo "NOT_CONFIGURED"
+```
+
+If `NOT_CONFIGURED`, run the interactive setup for the user:
+
+```bash
+node ~/.claude/plugins/cache/brain-jar/shared-memory/*/run.js
+```
+
+This will prompt for their Mem0 API key. If they skip it, local-only storage works fine.
 
 ## When to Store Memories
 
