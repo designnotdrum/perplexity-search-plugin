@@ -9,6 +9,86 @@ An MCP server that provides Perplexity AI search with personalized context enric
 - **Periodic Refresh**: Automatically refreshes profile every 2 days from conversation history
 - **Superior Citations**: Returns Perplexity's high-quality search results with source citations
 
+## How It Works
+
+```mermaid
+flowchart TD
+    Start([User asks Claude Code a question]) --> Detect{Trigger detected?<br/>Unfamiliar tech,<br/>decision point,<br/>learning question}
+
+    Detect -->|No| Normal[Standard Claude response]
+    Detect -->|Yes| LoadProfile[Load user profile<br/>~/.claude/perplexity-search/user-profile.json]
+
+    LoadProfile --> CheckStale{Profile older<br/>than 2 days?}
+    CheckStale -->|Yes| QueueRefresh[Queue background refresh<br/>from conversation history]
+    CheckStale -->|No| BuildContext
+    QueueRefresh --> BuildContext
+
+    BuildContext[Build context string from profile:<br/>- Technical preferences<br/>- Working style<br/>- Knowledge levels<br/>- Current projects]
+
+    BuildContext --> EnrichQuery[Enrich search query:<br/>Context about me: ...<br/>Query: ...]
+
+    EnrichQuery --> Perplexity[Send to Perplexity AI API]
+    Perplexity --> Results[Get results with citations]
+
+    Results --> SmartDetect[Smart detection scans<br/>conversation for preferences]
+
+    SmartDetect --> Patterns{Detect patterns?<br/>I prefer...<br/>I'm learning...<br/>I use...}
+
+    Patterns -->|Yes| UpdateProfile[Silently update profile<br/>with new preferences]
+    Patterns -->|No| Return
+    UpdateProfile --> Return[Return enriched results<br/>to Claude Code]
+
+    Return --> Response([Claude Code responds with<br/>personalized context])
+    Normal --> Response
+
+    style Start fill:#e1f5ff
+    style Response fill:#e1f5ff
+    style LoadProfile fill:#fff4e1
+    style BuildContext fill:#fff4e1
+    style EnrichQuery fill:#fff4e1
+    style Perplexity fill:#ffe1f5
+    style Results fill:#ffe1f5
+    style SmartDetect fill:#e1ffe1
+    style UpdateProfile fill:#e1ffe1
+```
+
+### Profile Memory System
+
+```mermaid
+flowchart LR
+    subgraph Profile Storage
+        File[(~/.claude/perplexity-search/<br/>user-profile.json)]
+    end
+
+    subgraph Automatic Updates
+        Conversation[Conversation text] --> Detect[Pattern detection]
+        Detect --> Extract[Extract preferences:<br/>- Languages & frameworks<br/>- Working style<br/>- Knowledge levels<br/>- Current projects]
+        Extract --> Update[Update profile]
+        Update --> File
+    end
+
+    subgraph Periodic Refresh
+        Timer[Every 2 days] --> Check{Need refresh?}
+        Check -->|Yes| History[Scan conversation<br/>history]
+        History --> Rebuild[Rebuild profile<br/>from patterns]
+        Rebuild --> File
+    end
+
+    subgraph Search Enhancement
+        File --> Load[Load profile]
+        Load --> Context[Build context string]
+        Context --> Query[Enrich search query]
+        Query --> API[Perplexity API]
+        API --> Results[Personalized results]
+    end
+
+    style File fill:#ffe1f5
+    style Detect fill:#e1ffe1
+    style Update fill:#e1ffe1
+    style Context fill:#fff4e1
+    style Results fill:#e1f5ff
+```
+
 ## Installation
 
 ### 1. Clone and Build
