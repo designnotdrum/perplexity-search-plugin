@@ -10,6 +10,7 @@ import { LocalStore } from './local-store';
 import { Mem0Client } from './mem0-client';
 import { checkConfig, loadConfig, saveConfig, getMissingConfigMessage, getConfigPath } from './config';
 import { AddMemoryInput, SearchMemoryInput, ListMemoriesInput } from './types';
+import { ProfileManager, InferenceEngine, ProfileSection } from './profile';
 
 const LOCAL_DB_PATH = path.join(os.homedir(), '.config', 'brain-jar', 'local.db');
 
@@ -61,6 +62,10 @@ async function main(): Promise<void> {
   // Mem0 client only if configured
   const mem0Client = config ? new Mem0Client(config.mem0_api_key) : null;
 
+  // Profile manager and inference engine (always available)
+  const profileManager = new ProfileManager();
+  const inferenceEngine = new InferenceEngine();
+
   if (!isConfigured) {
     console.error('[shared-memory] Warning: Not configured. Run with --setup or create config file.');
     console.error('[shared-memory] Local storage will work, but Mem0 cloud sync disabled.');
@@ -69,7 +74,7 @@ async function main(): Promise<void> {
   // Create MCP server
   const server = new McpServer({
     name: 'shared-memory',
-    version: '0.1.5',
+    version: '0.2.0',
   });
 
   // Register tools
@@ -227,6 +232,241 @@ async function main(): Promise<void> {
           {
             type: 'text' as const,
             text: deleted ? `Memory ${args.id} deleted.` : `Memory ${args.id} not found.`,
+          },
+        ],
+      };
+    }
+  );
+
+  // --- Profile Management Tools ---
+
+  server.tool(
+    'get_user_profile',
+    'Get the user profile or a specific section',
+    {
+      section: z
+        .enum(['all', 'identity', 'technical', 'workingStyle', 'knowledge', 'personal', 'meta'])
+        .optional()
+        .describe('Section to retrieve (default: all)'),
+    },
+    async (args: { section?: ProfileSection }) => {
+      const profile = await profileManager.load();
+      const section = args.section || 'all';
+
+      let data: unknown;
+      if (section === 'all') {
+        data = profile;
+      } else {
+        data = profile[section as keyof typeof profile];
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(data, null, 2),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'update_user_profile',
+    'Update a field in the user profile',
+    {
+      field: z.string().describe('Dot-path to field (e.g., "identity.name", "technical.languages")'),
+      value: z.union([z.string(), z.array(z.string())]).describe('Value to set'),
+      append: z.boolean().optional().describe('For array fields, append instead of replace'),
+    },
+    async (args: { field: string; value: string | string[]; append?: boolean }) => {
+      if (args.append && Array.isArray(args.value)) {
+        await profileManager.addToArray(args.field, args.value);
+      } else if (args.append && typeof args.value === 'string') {
+        await profileManager.addToArray(args.field, [args.value]);
+      } else {
+        await profileManager.set(args.field, args.value);
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Profile updated: ${args.field} = ${JSON.stringify(args.value)}`,
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'propose_profile_inference',
+    'Propose an inferred preference for user confirmation',
+    {
+      field: z.string().describe('Dot-path to field (e.g., "technical.languages")'),
+      value: z.union([z.string(), z.array(z.string())]).describe('Inferred value'),
+      evidence: z.string().describe('What triggered this inference'),
+      confidence: z.enum(['high', 'medium', 'low']).describe('Confidence level'),
+      source: z.enum(['codebase', 'conversation', 'config']).optional().describe('Source of inference'),
+    },
+    async (args: {
+      field: string;
+      value: string | string[];
+      evidence: string;
+      confidence: 'high' | 'medium' | 'low';
+      source?: 'codebase' | 'conversation' | 'config';
+    }) => {
+      const inference = await profileManager.addInference({
+        field: args.field,
+        value: args.value,
+        evidence: args.evidence,
+        confidence: args.confidence,
+        source: args.source || 'conversation',
+      });
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              message: 'Inference proposed - ask user to confirm',
+              inference_id: inference.id,
+              field: inference.field,
+              value: inference.value,
+              evidence: inference.evidence,
+            }),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'confirm_profile_update',
+    'Confirm a pending profile inference',
+    {
+      inference_id: z.string().describe('ID of the inference to confirm'),
+    },
+    async (args: { inference_id: string }) => {
+      const confirmed = await profileManager.confirmInference(args.inference_id);
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: confirmed
+              ? `Inference ${args.inference_id} confirmed and applied to profile.`
+              : `Inference ${args.inference_id} not found or already processed.`,
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'reject_profile_update',
+    'Reject a pending profile inference',
+    {
+      inference_id: z.string().describe('ID of the inference to reject'),
+    },
+    async (args: { inference_id: string }) => {
+      const rejected = await profileManager.rejectInference(args.inference_id);
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: rejected
+              ? `Inference ${args.inference_id} rejected.`
+              : `Inference ${args.inference_id} not found or already processed.`,
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'get_onboarding_questions',
+    'Get the next batch of onboarding questions based on profile gaps',
+    {
+      category: z
+        .enum(['identity', 'technical', 'workingStyle', 'personal'])
+        .optional()
+        .describe('Filter by category'),
+      count: z.number().optional().describe('Maximum questions to return (default: 3)'),
+    },
+    async (args: { category?: 'identity' | 'technical' | 'workingStyle' | 'personal'; count?: number }) => {
+      const profile = await profileManager.load();
+      let questions = profileManager.getNextOnboardingQuestions(profile, args.count || 3);
+
+      if (args.category) {
+        questions = questions.filter((q) => q.category === args.category);
+      }
+
+      // Record that we prompted
+      await profileManager.recordOnboardingPrompt();
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text:
+              questions.length > 0
+                ? JSON.stringify(questions, null, 2)
+                : 'No pending onboarding questions. Profile is complete or recently prompted.',
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'analyze_codebase_for_profile',
+    'Analyze current directory to infer tech preferences',
+    {
+      cwd: z.string().optional().describe('Directory to analyze (default: current working directory)'),
+    },
+    async (args: { cwd?: string }) => {
+      const cwd = args.cwd || process.cwd();
+      const profile = await profileManager.load();
+      const inferences = await inferenceEngine.detectFromCodebase(cwd, profile);
+
+      if (inferences.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: 'No new preferences detected from codebase analysis.',
+            },
+          ],
+        };
+      }
+
+      // Store all as pending inferences
+      const storedInferences = [];
+      for (const inf of inferences) {
+        const stored = await profileManager.addInference(inf);
+        storedInferences.push(stored);
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                message: `Detected ${storedInferences.length} potential preferences. Ask user to confirm each.`,
+                inferences: storedInferences.map((i) => ({
+                  id: i.id,
+                  field: i.field,
+                  value: i.value,
+                  evidence: i.evidence,
+                  confidence: i.confidence,
+                })),
+              },
+              null,
+              2
+            ),
           },
         ],
       };

@@ -161,11 +161,11 @@ async function main() {
 
   const apiKey = configStatus.apiKey!;
 
-  // Initialize components
+  // Initialize components - use shared brain-jar profile
   const profilePath = path.join(
     os.homedir(),
-    '.claude',
-    'perplexity-search',
+    '.config',
+    'brain-jar',
     'user-profile.json'
   );
   const profileManager = new ProfileManager(profilePath);

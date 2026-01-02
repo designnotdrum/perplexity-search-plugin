@@ -16,8 +16,8 @@
     },
     {
       "name": "shared-memory",
-      "description": "Persistent memory across agents with semantic search",
-      "version": "0.1.5",
+      "description": "Persistent memory across agents with semantic search and user profile learning",
+      "version": "0.2.0",
       "source": "./plugins/shared-memory",
       "author": {
         "name": "Nick Mason"

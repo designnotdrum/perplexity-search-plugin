@@ -109,3 +109,27 @@ Use natural recall language:
 - `personality` - Working style, communication preferences
 - `project` - Project-specific context
 - `session-summary` - End-of-session consolidation
+- `profile-context` - Background context for profile preferences
+- `profile-learning` - Observations that inform the user profile
+
+## Related Skills
+
+### Learning About You
+
+For structured user profile management (name, role, tech preferences, working style),
+use the `learning-about-you` skill instead of storing as freeform memories.
+
+**Use memories for:**
+- Rich context and reasoning behind preferences
+- Specific quotes and reactions
+- Project-specific decisions
+- Session summaries
+
+**Use profile for:**
+- Structured data (name, timezone, role)
+- Tech stack preferences (languages, frameworks)
+- Working style settings (verbosity, pace)
+- Personal goals and interests
+
+The profile is queryable and shared across all brain-jar plugins. Memories provide
+the context and "why" behind profile entries.

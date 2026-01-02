@@ -95,8 +95,11 @@ User: "What's the best way to handle state in React?"
 ## Integration with Profile
 
 The tool automatically:
-- Loads user profile from `~/.claude/perplexity-search/user-profile.json`
+- Loads user profile from `~/.config/brain-jar/user-profile.json` (shared with shared-memory plugin)
 - Enriches queries with personal context
 - Returns results with superior citations
 - Updates profile when user mentions preferences (silent)
 - Refreshes profile every 2 days from conversation history (automatic)
+
+**Note**: The profile is now shared across all brain-jar plugins. Use the shared-memory plugin's
+`learning-about-you` skill for comprehensive profile management and onboarding.
