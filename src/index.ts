@@ -57,9 +57,9 @@ async function runSetupWizard(): Promise<void> {
     const skillsDir = path.join(os.homedir(), '.claude', 'skills');
     const skillSource = path.join(
       process.cwd(),
-      'docs',
       'skills',
-      'using-perplexity-for-context.md'
+      'using-perplexity-for-context',
+      'SKILL.md'
     );
     const skillDest = path.join(skillsDir, 'using-perplexity-for-context.md');
 
@@ -69,7 +69,7 @@ async function runSetupWizard(): Promise<void> {
       console.error('✅ Skill file installed to', skillDest);
     } catch (error) {
       console.error('⚠️  Could not install skill file:', (error as Error).message);
-      console.error('   You can manually copy it from docs/skills/using-perplexity-for-context.md');
+      console.error('   You can manually copy it from skills/using-perplexity-for-context/SKILL.md');
     }
   }
 
