@@ -1,0 +1,18 @@
+{
+  "name": "perplexity-search",
+  "description": "Perplexity AI web search plugin for Claude Code",
+  "owner": {
+    "name": "Nick Mason"
+  },
+  "plugins": [
+    {
+      "name": "perplexity-search",
+      "description": "Web search via Perplexity AI with smart context detection",
+      "version": "1.0.0",
+      "source": "./",
+      "author": {
+        "name": "Nick Mason"
+      }
+    }
+  ]
+}
