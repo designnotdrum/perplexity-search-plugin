@@ -8,10 +8,15 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { ExplainConceptTool } from './tools/explain-concept.js';
 import { AnalyzeCaptureTool } from './tools/analyze-capture.js';
+import {
+  SuggestNextStepTool,
+  InvestigationContext,
+} from './tools/suggest-next-step.js';
 
 // Initialize tools
 const explainConceptTool = new ExplainConceptTool();
 const analyzeCaptureTool = new AnalyzeCaptureTool();
+const suggestNextStepTool = new SuggestNextStepTool();
 
 async function main() {
   const server = new Server(
@@ -62,6 +67,53 @@ async function main() {
             required: ['content'],
           },
         },
+        {
+          name: 'suggest_next_step',
+          description:
+            'Get context-aware guidance for your investigation. Suggests the next step based on your current mode and progress, with verbosity adapted to your skill level.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              mode: {
+                type: 'string',
+                enum: ['protocol', 'feature', 'codebase', 'decision', 'format'],
+                description:
+                  'The investigation mode: protocol (API reverse engineering), feature (feature analysis), codebase (code exploration), decision (understanding past decisions), format (binary format analysis)',
+              },
+              skillLevel: {
+                type: 'string',
+                enum: ['beginner', 'intermediate', 'advanced'],
+                description:
+                  'Your skill level for verbosity adjustment. Beginners get detailed commands and tips.',
+                default: 'beginner',
+              },
+              hasCapture: {
+                type: 'boolean',
+                description:
+                  'Whether you have captured network traffic (protocol mode)',
+              },
+              hasSpec: {
+                type: 'boolean',
+                description:
+                  'Whether you have documented the API specification (protocol mode)',
+              },
+              hasResearch: {
+                type: 'boolean',
+                description:
+                  'Whether you have completed competitive research (feature mode)',
+              },
+              targetFeature: {
+                type: 'string',
+                description: 'The feature being investigated (feature mode)',
+              },
+              targetCodebase: {
+                type: 'string',
+                description: 'The codebase being explored (codebase mode)',
+              },
+            },
+            required: ['mode'],
+          },
+        },
       ],
     };
   });
@@ -103,6 +155,49 @@ async function main() {
           {
             type: 'text',
             text: result.formatted,
+          },
+        ],
+      };
+    }
+
+    if (name === 'suggest_next_step') {
+      const args = request.params.arguments as {
+        mode: InvestigationContext['mode'];
+        skillLevel?: InvestigationContext['skillLevel'];
+        hasCapture?: boolean;
+        hasSpec?: boolean;
+        hasResearch?: boolean;
+        targetFeature?: string;
+        targetCodebase?: string;
+      };
+
+      const context: InvestigationContext = {
+        mode: args.mode,
+        skillLevel: args.skillLevel || 'beginner',
+        hasCapture: args.hasCapture,
+        hasSpec: args.hasSpec,
+        hasResearch: args.hasResearch,
+        targetFeature: args.targetFeature,
+        targetCodebase: args.targetCodebase,
+      };
+
+      const result = suggestNextStepTool.suggest(context);
+
+      let response = `## Next Step: ${result.step}\n\n${result.explanation}`;
+
+      if (result.commands && result.commands.length > 0) {
+        response += `\n\n**Commands:**\n${result.commands.map((cmd) => `- \`${cmd}\``).join('\n')}`;
+      }
+
+      if (result.tips && result.tips.length > 0) {
+        response += `\n\n**Tips:**\n${result.tips.map((tip) => `- ${tip}`).join('\n')}`;
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: response,
           },
         ],
       };
