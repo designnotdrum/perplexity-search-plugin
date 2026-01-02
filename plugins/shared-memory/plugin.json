@@ -1,6 +1,6 @@
 {
   "name": "shared-memory",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Persistent memory across agents with semantic search",
   "author": {
     "name": "Nick Mason"
