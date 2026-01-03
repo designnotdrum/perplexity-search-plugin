@@ -88,31 +88,36 @@ File location: `.claude-plugin/plugin.json`
 }
 ```
 
-### Version Bumping (MANDATORY)
+### Releasing Plugin Changes (MANDATORY)
 
-**ANY code change to a plugin requires a version bump.** Without a version bump, the marketplace won't publish the update and users won't receive changes.
+**ANY code change to a plugin requires a version bump and release.** Without this, the marketplace won't publish and users won't receive changes.
 
-**Use Semantic Versioning (semver):**
-- `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
+**ALWAYS use the `/release` skill:**
+```
+/release <plugin-name> <patch|minor|major> "description of changes"
+```
+
+Examples:
+```
+/release shared-memory patch "fix memory leak"
+/release perplexity-search minor "add deep search mode"
+/release forensics major "new protocol decoder API"
+```
+
+The skill handles everything automatically:
+- Build + typecheck
+- Semver version bump (MAJOR.MINOR.PATCH)
+- Updates all 5 version references
+- Creates/updates README highlights section
+- Rebuilds dist/
+- Commits + pushes
+
+**DO NOT manually bump versions.** Use the skill. It ensures consistency and prevents mistakes.
+
+**Semver guide:**
 - **PATCH** (1.2.3 → 1.2.4): Bug fixes, small tweaks
 - **MINOR** (1.2.3 → 1.3.0): New features, backwards-compatible changes
 - **MAJOR** (1.2.3 → 2.0.0): Breaking changes
-
-**What to update (ALL of these, same commit):**
-
-1. **Plugin files:**
-   - `plugins/<name>/package.json`
-   - `plugins/<name>/.claude-plugin/plugin.json`
-   - `plugins/<name>/src/index.ts` (McpServer version)
-
-2. **Marketplace:**
-   - `.claude-plugin/marketplace.json` - update version for that plugin
-
-3. **Documentation:**
-   - `README.md` - update the plugin's entry in the plugins table
-   - `plugins/<name>/README.md` (if exists) - update version and changelog
-
-**This is non-negotiable.** Changes without version bumps don't publish. Version bumps without doc updates create confusion.
 
 ## Testing
 
