@@ -102,12 +102,45 @@ Section description follows...
 
 ## Implementation
 
+### Approach: Hook-Based Integration
+
+**Key constraint:** brain-jar owns visual-thinking, but NOT superpowers:brainstorming. We can't modify third-party plugins.
+
+**Solution:** Use hookify to inject diagram prompts during any brainstorming session. This keeps the UX seamless without requiring ownership of other plugins.
+
+### Hook Configuration
+
+Create a hookify rule in brain-jar that triggers on brainstorming context:
+
+```yaml
+name: visual-thinking-brainstorm-integration
+description: Offer diagrams during brainstorming sessions
+trigger:
+  # Detect brainstorming skill is active or design discussion happening
+  patterns:
+    - "architecture"
+    - "flow"
+    - "workflow"
+    - "wireflow"
+    - "data model"
+    - "state machine"
+    - "user journey"
+    - "wireframe"
+    - "mockup"
+action:
+  prompt: |
+    Consider offering to capture this as a diagram using visual-thinking.
+    If the user is discussing architecture, flows, or UI, ask:
+    "Want me to capture this as a diagram? I can create a [flowchart/sequence/mindmap]
+    and open it in draw.io for you to edit."
+```
+
 ### Files to Modify
 
 | File | Change |
 |------|--------|
-| `superpowers/skills/brainstorming/SKILL.md` | Add trigger word detection, post-section prompts, end summary offer |
-| `visual-thinking/skills/capture/SKILL.md` | Ensure smooth mid-brainstorm invocation |
+| `brain-jar/plugins/visual-thinking/hooks/brainstorm-integration.yaml` | New hookify rule for diagram prompts |
+| `brain-jar/plugins/visual-thinking/skills/capture/SKILL.md` | Enhance for mid-brainstorm invocation |
 
 ### Diagram Creation Flow
 
@@ -121,6 +154,13 @@ When user accepts diagram offer:
 3. Diagram auto-opens in draw.io
 4. Reference stored for design doc
 
+### Why Hooks?
+
+- **No plugin ownership required** - Works with any brainstorming tool
+- **Seamless UX** - User doesn't need to invoke anything manually
+- **Composable** - Other brain-jar plugins can add their own hooks
+- **Configurable** - Users can adjust trigger words or disable
+
 ## Future Enhancement
 
 **Native draw.io XML generation** - Currently limited to Mermaid syntax which draw.io converts. Native XML would enable:
@@ -133,7 +173,8 @@ This is tracked in shared-memory for future implementation.
 
 ## Success Criteria
 
-- [ ] Brainstorming skill prompts for diagrams at trigger points
+- [ ] Hookify rule triggers diagram prompts during brainstorming
+- [ ] Works with superpowers:brainstorming (or any brainstorming tool)
 - [ ] Diagrams save to visual-thinking with proper scope/tags
 - [ ] Design docs include inline mermaid + visual-thinking reference
 - [ ] Edit workflow: export to draw.io, modify, update both sources
