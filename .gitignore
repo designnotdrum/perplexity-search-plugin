@@ -24,3 +24,4 @@ worktrees/
 # IDE
 .idea/
 .vscode/
+.claude/
