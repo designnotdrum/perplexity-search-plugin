@@ -99,10 +99,11 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Mem0 sync** for cross-machine persistence
 - **Bundled dependencies** for instant marketplace install
 
-### perplexity-search v2.0.0
+### perplexity-search v2.0.1
 - **Profile-enriched queries** return stack-relevant results
 - **Search memory** builds context over time
 - **Perplexity Sonar** for real-time, cited answers
+- **Bundled dependencies** for instant marketplace install
 
 ### forensics v0.2.0
 - **Investigation persistence** across sessions

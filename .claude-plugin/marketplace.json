@@ -8,7 +8,7 @@
     {
       "name": "perplexity-search",
       "description": "Web search via Perplexity AI with smart context detection",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "source": "./plugins/perplexity-search",
       "author": {
         "name": "Nick Mason"

@@ -1,6 +1,6 @@
 {
   "name": "perplexity-search",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Web search via Perplexity AI with smart context detection",
   "author": {
     "name": "Nick Mason"
