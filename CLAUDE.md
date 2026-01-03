@@ -88,9 +88,17 @@ File location: `.claude-plugin/plugin.json`
 }
 ```
 
-### Version Bumping (AUTOMATIC)
+### Version Bumping (MANDATORY)
 
-**When bumping a plugin version, you MUST update ALL of these:**
+**ANY code change to a plugin requires a version bump.** Without a version bump, the marketplace won't publish the update and users won't receive changes.
+
+**Use Semantic Versioning (semver):**
+- `MAJOR.MINOR.PATCH` (e.g., `1.2.3`)
+- **PATCH** (1.2.3 → 1.2.4): Bug fixes, small tweaks
+- **MINOR** (1.2.3 → 1.3.0): New features, backwards-compatible changes
+- **MAJOR** (1.2.3 → 2.0.0): Breaking changes
+
+**What to update (ALL of these, same commit):**
 
 1. **Plugin files:**
    - `plugins/<name>/package.json`
@@ -104,7 +112,7 @@ File location: `.claude-plugin/plugin.json`
    - `README.md` - update the plugin's entry in the plugins table
    - `plugins/<name>/README.md` (if exists) - update version and changelog
 
-**This is non-negotiable.** Version changes without documentation updates create confusion for users. When you bump a version, proactively update all related docs in the same commit.
+**This is non-negotiable.** Changes without version bumps don't publish. Version bumps without doc updates create confusion.
 
 ## Testing
 
