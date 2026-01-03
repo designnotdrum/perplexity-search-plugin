@@ -17,6 +17,16 @@ interface Mem0SearchResult {
   metadata?: Record<string, unknown>;
 }
 
+// Result from add() operation (v2 uses async processing with event_id)
+interface Mem0AddResult {
+  id?: string;
+  event_id?: string;
+  status?: string;
+  message?: string;
+  memory?: string;
+  metadata?: Record<string, unknown>;
+}
+
 // Profile snapshot stored in Mem0
 export interface ProfileSnapshot {
   profile: UserProfile;
@@ -47,19 +57,35 @@ export class Mem0Client {
     this.userId = userId;
   }
 
+  // Helper to extract results array from API response (v2 wraps in {results: [...]})
+  private extractResults<T>(response: T[] | { results: T[] }): T[] {
+    if (Array.isArray(response)) {
+      return response;
+    }
+    return response?.results || [];
+  }
+
   async add(content: string, metadata: Record<string, unknown> = {}): Promise<string> {
-    const result = await this.client.add(content, {
+    // v2 API: add() expects messages array as first param
+    const messages = [{ role: 'user', content }];
+    const result = await this.client.add(messages, {
       user_id: this.userId,
       metadata,
     });
-    return result.id;
+    // v2 returns array with event_id for async processing, or id for sync
+    const results = this.extractResults<Mem0AddResult>(result);
+    const firstResult = results[0];
+    // Return id if available, otherwise event_id for async tracking
+    return firstResult?.id || firstResult?.event_id || result?.id || result?.event_id || '';
   }
 
   async search(query: string, limit: number = 10): Promise<Memory[]> {
-    const results: Mem0SearchResult[] = await this.client.search(query, {
+    // v2 API: search() uses user_id at top level
+    const response = await this.client.search(query, {
       user_id: this.userId,
       limit,
     });
+    const results: Mem0SearchResult[] = this.extractResults(response);
 
     return results.map((r) => ({
       id: r.id,
@@ -76,9 +102,11 @@ export class Mem0Client {
   }
 
   async getAll(): Promise<Memory[]> {
-    const results: Mem0Memory[] = await this.client.getAll({
+    // v2 API: getAll() uses user_id at top level
+    const response = await this.client.getAll({
       user_id: this.userId,
     });
+    const results: Mem0Memory[] = this.extractResults(response);
 
     return results.map((r) => ({
       id: r.id,
@@ -111,9 +139,10 @@ export class Mem0Client {
    */
   async getLatestProfile(): Promise<ProfileSnapshot | null> {
     try {
-      const results: Mem0Memory[] = await this.client.getAll({
+      const response = await this.client.getAll({
         user_id: this.userId,
       });
+      const results: Mem0Memory[] = this.extractResults(response);
 
       // Filter to profile snapshots and sort by timestamp descending
       const profileSnapshots = results
@@ -153,8 +182,11 @@ export class Mem0Client {
   async saveProfileSnapshot(profile: UserProfile): Promise<string | null> {
     try {
       const timestamp = new Date().toISOString();
-      const result = await this.client.add(JSON.stringify(profile), {
+      // v2 API: add() expects messages array
+      const messages = [{ role: 'user', content: JSON.stringify(profile) }];
+      const result = await this.client.add(messages, {
         user_id: this.userId,
+        infer: false, // Store raw JSON without semantic extraction
         metadata: {
           type: 'profile-snapshot',
           timestamp,
@@ -162,7 +194,9 @@ export class Mem0Client {
           scope: 'global',
         },
       });
-      return result.id;
+      const results = this.extractResults<Mem0AddResult>(result);
+      const firstResult = results[0];
+      return firstResult?.id || firstResult?.event_id || result?.id || result?.event_id || null;
     } catch (error) {
       console.warn('Failed to save profile snapshot to Mem0:', error);
       return null;
@@ -175,9 +209,10 @@ export class Mem0Client {
    */
   async getProfileHistory(since?: Date, limit?: number): Promise<ProfileSnapshot[]> {
     try {
-      const results: Mem0Memory[] = await this.client.getAll({
+      const response = await this.client.getAll({
         user_id: this.userId,
       });
+      const results: Mem0Memory[] = this.extractResults(response);
 
       // Filter to profile snapshots
       let snapshots: ProfileSnapshot[] = results
@@ -229,7 +264,9 @@ export class Mem0Client {
   ): Promise<string | null> {
     try {
       const timestamp = new Date().toISOString();
-      const result = await this.client.add(content, {
+      // v2 API: add() expects messages array
+      const messages = [{ role: 'user', content }];
+      const result = await this.client.add(messages, {
         user_id: this.userId,
         metadata: {
           type: 'activity-summary',
@@ -240,7 +277,9 @@ export class Mem0Client {
           timestamp,
         },
       });
-      return result.id;
+      const results = this.extractResults<Mem0AddResult>(result);
+      const firstResult = results[0];
+      return firstResult?.id || firstResult?.event_id || result?.id || result?.event_id || null;
     } catch (error) {
       console.warn('Failed to save activity summary to Mem0:', error);
       return null;
@@ -252,9 +291,10 @@ export class Mem0Client {
    */
   async getSummaries(scope?: string, since?: Date, limit?: number): Promise<ActivitySummary[]> {
     try {
-      const results: Mem0Memory[] = await this.client.getAll({
+      const response = await this.client.getAll({
         user_id: this.userId,
       });
+      const results: Mem0Memory[] = this.extractResults(response);
 
       // Filter to activity summaries
       let summaries: ActivitySummary[] = results

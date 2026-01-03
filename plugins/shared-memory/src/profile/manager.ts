@@ -4,8 +4,9 @@
  * Profile is shared across all brain-jar plugins at:
  * ~/.config/brain-jar/user-profile.json
  *
- * With Mem0 configured, profile is synced to cloud as append-only snapshots.
- * Local file acts as cache, Mem0 is source of truth.
+ * Profile is synced to Mem0 as append-only snapshots using infer:false
+ * to preserve raw JSON. This enables profile portability across machines
+ * and historical analysis ("You, Wrapped").
  */
 
 import * as fs from 'fs/promises';
@@ -85,83 +86,93 @@ export class ProfileManager {
   // --- Mem0 Sync Methods ---
 
   /**
-   * Syncs profile from Mem0 (source of truth).
-   * If Mem0 has a newer profile, updates local cache.
-   * If local is newer or Mem0 is empty, pushes to Mem0.
+   * Syncs profile from Mem0 on startup.
+   * - If Mem0 has a newer profile, pull it (and save locally)
+   * - If local is newer or Mem0 is empty, push local to Mem0
+   * - If no Mem0 client, skip sync
    */
   async syncFromMem0(): Promise<{ action: 'pulled' | 'pushed' | 'skipped'; profile: UserProfile }> {
-    if (!this.mem0Client) {
-      const profile = await this.load();
-      return { action: 'skipped', profile };
-    }
-
     const localProfile = await this.load();
-    const remoteSnapshot = await this.mem0Client.getLatestProfile();
 
-    if (!remoteSnapshot) {
-      // No remote profile - push local as first snapshot
-      console.log('[ProfileManager] No remote profile found, pushing local to Mem0');
-      await this.pushSnapshot(localProfile);
-      return { action: 'pushed', profile: localProfile };
+    if (!this.mem0Client) {
+      return { action: 'skipped', profile: localProfile };
     }
 
-    // Compare timestamps to determine which is newer
-    const localTime = new Date(localProfile.meta.lastUpdated).getTime();
-    const remoteTime = new Date(remoteSnapshot.timestamp).getTime();
+    try {
+      const remoteSnapshot = await this.mem0Client.getLatestProfile();
 
-    if (remoteTime > localTime) {
-      // Remote is newer - update local cache
-      console.log('[ProfileManager] Remote profile is newer, updating local cache');
-      await this.save(remoteSnapshot.profile, true); // Skip Mem0 sync to avoid loop
-      this.lastSyncedProfile = JSON.stringify(remoteSnapshot.profile);
-      return { action: 'pulled', profile: remoteSnapshot.profile };
-    } else if (localTime > remoteTime) {
-      // Local is newer - push to Mem0
-      console.log('[ProfileManager] Local profile is newer, pushing to Mem0');
-      await this.pushSnapshot(localProfile);
-      return { action: 'pushed', profile: localProfile };
+      if (!remoteSnapshot) {
+        // No remote profile - push local
+        await this.pushSnapshot(localProfile);
+        return { action: 'pushed', profile: localProfile };
+      }
+
+      // Compare timestamps
+      const localUpdated = new Date(localProfile.meta.lastUpdated || 0);
+      const remoteUpdated = new Date(remoteSnapshot.timestamp);
+
+      if (remoteUpdated > localUpdated) {
+        // Remote is newer - pull it
+        await this.save(remoteSnapshot.profile, true); // skipMem0Sync to avoid loop
+        this.lastSyncedProfile = JSON.stringify(remoteSnapshot.profile);
+        return { action: 'pulled', profile: remoteSnapshot.profile };
+      } else {
+        // Local is newer or same - push if changed
+        const localJson = JSON.stringify(localProfile);
+        if (localJson !== this.lastSyncedProfile) {
+          await this.pushSnapshot(localProfile);
+        }
+        return { action: 'pushed', profile: localProfile };
+      }
+    } catch (error) {
+      console.warn('Profile sync from Mem0 failed:', error);
+      return { action: 'skipped', profile: localProfile };
     }
-
-    // Same time - no action needed
-    this.lastSyncedProfile = JSON.stringify(localProfile);
-    return { action: 'skipped', profile: localProfile };
   }
 
   /**
    * Pushes a new profile snapshot to Mem0.
-   * Only pushes if profile has actually changed (deep compare).
+   * Uses infer:false to store raw JSON without semantic extraction.
    */
   async pushSnapshot(profile: UserProfile): Promise<boolean> {
     if (!this.mem0Client) {
       return false;
     }
 
-    const profileJson = JSON.stringify(profile);
+    try {
+      const profileJson = JSON.stringify(profile);
+      // Only push if changed
+      if (profileJson === this.lastSyncedProfile) {
+        return true;
+      }
 
-    // Skip if profile hasn't changed since last sync
-    if (this.lastSyncedProfile === profileJson) {
+      const id = await this.mem0Client.saveProfileSnapshot(profile);
+      if (id) {
+        this.lastSyncedProfile = profileJson;
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn('Failed to push profile snapshot to Mem0:', error);
       return false;
     }
-
-    const memoryId = await this.mem0Client.saveProfileSnapshot(profile);
-    if (memoryId) {
-      this.lastSyncedProfile = profileJson;
-      console.log('[ProfileManager] Profile snapshot saved to Mem0:', memoryId);
-      return true;
-    }
-
-    return false;
   }
 
   /**
    * Gets profile history from Mem0.
+   * Returns snapshots sorted newest-first.
    */
   async getHistory(since?: Date, limit?: number): Promise<ProfileSnapshot[]> {
     if (!this.mem0Client) {
       return [];
     }
 
-    return this.mem0Client.getProfileHistory(since, limit);
+    try {
+      return await this.mem0Client.getProfileHistory(since, limit);
+    } catch (error) {
+      console.warn('Failed to get profile history from Mem0:', error);
+      return [];
+    }
   }
 
   /**

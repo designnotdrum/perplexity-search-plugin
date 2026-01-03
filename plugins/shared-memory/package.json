@@ -1,6 +1,6 @@
 {
   "name": "shared-memory-mcp",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "MCP server providing persistent memory across agents via Mem0",
   "main": "dist/index.js",
   "scripts": {
@@ -12,15 +12,20 @@
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["mcp", "memory", "mem0", "claude-code"],
+  "keywords": [
+    "mcp",
+    "memory",
+    "mem0",
+    "claude-code"
+  ],
   "author": "Nick Mason",
   "license": "MIT",
   "type": "commonjs",
   "dependencies": {
+    "@inquirer/prompts": "^8.1.0",
     "@modelcontextprotocol/sdk": "^1.25.1",
-    "mem0ai": "^1.0.26",
     "better-sqlite3": "^11.0.0",
-    "@inquirer/prompts": "^8.1.0"
+    "mem0ai": "^2.2.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
