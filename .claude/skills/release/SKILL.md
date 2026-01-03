@@ -81,14 +81,21 @@ For subsequent releases, add new bullet points to the existing section describin
 
 The highlights section should be concise - 3-5 bullet points max covering the most important features/fixes.
 
-### 6. Rebuild After Version Update
+### 6. Rebuild and Bundle After Version Update
 
 ```bash
 cd plugins/<plugin>
 npm run build
 ```
 
-This ensures dist/ has the updated version.
+Then from the repo root, rebuild all bundles:
+
+```bash
+cd /path/to/brain-jar
+npm run bundle
+```
+
+This ensures both `dist/index.js` and `dist/bundle.js` have the updated code. The bundle is what marketplace installs actually load.
 
 ### 7. Stage and Commit
 

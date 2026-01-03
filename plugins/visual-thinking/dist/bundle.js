@@ -45427,6 +45427,9 @@ var StdioServerTransport = class {
   }
 };
 
+// plugins/visual-thinking/src/index.ts
+var import_child_process = require("child_process");
+
 // packages/core/src/config.ts
 var fs = __toESM(require("fs"));
 var path = __toESM(require("path"));
@@ -46040,7 +46043,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "visual-thinking",
-    version: "0.1.3"
+    version: "0.2.1"
   });
   server.tool(
     "create_diagram",
@@ -46378,20 +46381,22 @@ ${diagram.mermaid}
         };
       }
       if (args.format === "drawio") {
+        const createObj = JSON.stringify({ type: "mermaid", data: diagram.mermaid });
+        const url2 = `https://app.diagrams.net/?create=${encodeURIComponent(createObj)}`;
+        const platform = process.platform;
+        const openCmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open";
+        (0, import_child_process.exec)(`${openCmd} "${url2}"`, (error48) => {
+          if (error48) {
+            console.error("[visual-thinking] Failed to open browser:", error48.message);
+          }
+        });
         return {
           content: [
             {
               type: "text",
-              text: `Draw.io export requires the drawio-mcp-server.
+              text: `Opening "${diagram.title}" in Draw.io...
 
-Install from: https://github.com/lgazo/drawio-mcp-server
-
-Once installed, use the drawio MCP tools to create diagrams.
-
-Mermaid content for reference:
-\`\`\`mermaid
-${diagram.mermaid}
-\`\`\``
+The diagram will open in your browser and be converted to editable shapes.`
             }
           ]
         };
