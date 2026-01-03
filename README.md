@@ -16,6 +16,12 @@ Persistent memory across agents with semantic search. Memories travel with you a
 
 [Documentation](./plugins/shared-memory/README.md)
 
+### forensics
+
+Reverse engineer black-box systems: APIs, protocols, features, and data formats. Guided workflows adapt to your skill level.
+
+[Documentation](./plugins/forensics/skills/investigate/SKILL.md)
+
 ## Installation
 
 Add this repository as a marketplace in Claude Code:
@@ -44,7 +50,8 @@ brain-jar/
 │   └── marketplace.json      # Registry manifest
 ├── plugins/
 │   ├── perplexity-search/    # Web search plugin
-│   └── shared-memory/        # Memory plugin
+│   ├── shared-memory/        # Memory plugin
+│   └── forensics/            # Reverse engineering plugin
 └── README.md
 ```
 
