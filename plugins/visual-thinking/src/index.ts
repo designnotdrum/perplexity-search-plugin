@@ -3,6 +3,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { exec } from 'child_process';
 
 import { Mem0Client, checkConfig, loadConfig } from '@brain-jar/core';
 import { DiagramStorage } from './storage';
@@ -45,7 +46,7 @@ async function main(): Promise<void> {
   // Create MCP server
   const server = new McpServer({
     name: 'visual-thinking',
-    version: '0.2.0',
+    version: '0.2.1',
   });
 
   // --- Diagram Tools ---
@@ -364,11 +365,20 @@ async function main(): Promise<void> {
         const createObj = JSON.stringify({ type: 'mermaid', data: diagram.mermaid });
         const url = `https://app.diagrams.net/?create=${encodeURIComponent(createObj)}`;
 
+        // Auto-open in browser (cross-platform)
+        const platform = process.platform;
+        const openCmd = platform === 'darwin' ? 'open' : platform === 'win32' ? 'start' : 'xdg-open';
+        exec(`${openCmd} "${url}"`, (error) => {
+          if (error) {
+            console.error('[visual-thinking] Failed to open browser:', error.message);
+          }
+        });
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: `**Open in Draw.io:** ${url}\n\nClick the link to open and edit your diagram in diagrams.net.\nThe Mermaid code will be converted to editable shapes automatically.`,
+              text: `Opening "${diagram.title}" in Draw.io...\n\nThe diagram will open in your browser and be converted to editable shapes.`,
             },
           ],
         };
