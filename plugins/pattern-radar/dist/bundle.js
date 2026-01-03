@@ -30593,7 +30593,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "pattern-radar",
-    version: "0.1.1"
+    version: "0.1.2"
   });
   server.tool(
     "scan_trends",

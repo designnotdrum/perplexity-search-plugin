@@ -26,7 +26,7 @@
     {
       "name": "forensics",
       "description": "Reverse engineer black-box systems: APIs, protocols, features, and data formats",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "source": "./plugins/forensics",
       "author": {
         "name": "Nick Mason"
@@ -35,7 +35,7 @@
     {
       "name": "visual-thinking",
       "description": "Persistent Mermaid diagrams that Claude can read, build on, and export",
-      "version": "0.1.2",
+      "version": "0.1.3",
       "source": "./plugins/visual-thinking",
       "author": {
         "name": "Nick Mason"
@@ -44,7 +44,7 @@
     {
       "name": "pattern-radar",
       "description": "Personalized trend detection at the intersection of your knowledge and emerging opportunities",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "source": "./plugins/pattern-radar",
       "author": {
         "name": "Nick Mason"
