@@ -107,7 +107,7 @@ async function main() {
     // Create MCP server
     const server = new mcp_js_1.McpServer({
         name: 'shared-memory',
-        version: '1.4.0',
+        version: '2.0.0',
     });
     // Register tools
     server.tool('add_memory', 'Store a memory with enriched context', {

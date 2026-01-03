@@ -117,12 +117,17 @@ describe('SmartDetector', () => {
   });
 
   it('updates meta.lastUpdated timestamp', () => {
-    const oldTimestamp = baseProfile.meta.lastUpdated;
-    const text = 'I prefer TypeScript';
+    // Set an explicitly old timestamp
+    const oldTimestamp = '2020-01-01T00:00:00.000Z';
+    baseProfile.meta.lastUpdated = oldTimestamp;
 
-    // Small delay to ensure timestamp differs
+    const text = 'I prefer TypeScript';
     const updated = detector.detectAndUpdate(text, baseProfile);
+
     expect(updated.meta.lastUpdated).not.toBe(oldTimestamp);
+    expect(new Date(updated.meta.lastUpdated).getTime()).toBeGreaterThan(
+      new Date(oldTimestamp).getTime()
+    );
   });
 
   it('returns unchanged profile for non-preference statements', () => {
