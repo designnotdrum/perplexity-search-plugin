@@ -1,7 +1,6 @@
 ---
 name: release
 description: Build, bump version, commit, and push a brain-jar plugin release. Usage: /release <plugin-name> <patch|minor|major> [message]
-user-invocable: true
 ---
 
 # Release Skill for brain-jar Plugins
