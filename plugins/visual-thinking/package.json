@@ -1,0 +1,39 @@
+{
+  "name": "visual-thinking-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for persistent visual thinking diagrams",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "postinstall": "npm run build",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "mermaid",
+    "diagrams",
+    "visual-thinking",
+    "claude-code"
+  ],
+  "author": "Nick Mason",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@brain-jar/core": "*",
+    "@inquirer/prompts": "^8.1.0",
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "better-sqlite3": "^12.5.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^25.0.3",
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,6 +1,6 @@
 # brain-jar
 
-**Claude Code plugins that remember, search, and investigate.**
+**Claude Code plugins that remember, search, investigate, visualize, and discover.**
 
 Claude is brilliant but forgetful. Every session starts from zero—no memory of your preferences, no context from yesterday, no accumulated knowledge. Brain-jar fixes that.
 
@@ -11,6 +11,8 @@ Claude is brilliant but forgetful. Every session starts from zero—no memory of
 | [shared-memory](./plugins/shared-memory/README.md) | Persistent memory and user profiles across sessions |
 | [perplexity-search](./plugins/perplexity-search/README.md) | Web search that knows your stack and history |
 | [forensics](./plugins/forensics/README.md) | Guided reverse engineering for APIs, protocols, and code |
+| [visual-thinking](./plugins/visual-thinking/README.md) | Persistent diagrams that Claude can read, build on, and export |
+| [pattern-radar](./plugins/pattern-radar/README.md) | Personalized trend detection at the intersection of your knowledge |
 
 ## Why Brain-Jar?
 
@@ -58,26 +60,32 @@ Install plugins individually:
 ## The Stack
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     Claude Code                          │
-├─────────────────────────────────────────────────────────┤
-│  shared-memory    perplexity-search    forensics        │
-│  ───────────────  ─────────────────    ──────────       │
-│  • User profiles  • Context-aware      • Investigations │
-│  • Memory store   • Search history     • Traffic analysis│
-│  • Auto-summaries • Profile-enriched   • Spec generation │
-└─────────────────────────────────────────────────────────┘
-                           ↓
-              ┌────────────────────────┐
-              │    @brain-jar/core     │
-              │    Shared Mem0 client  │
-              │    Common types        │
-              └────────────────────────┘
-                           ↓
-              ┌────────────────────────┐
-              │        Mem0 Cloud      │
-              │   Persistent storage   │
-              └────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            Claude Code                                   │
+├─────────────────────────────────────────────────────────────────────────┤
+│  shared-memory    perplexity-search    forensics                        │
+│  ───────────────  ─────────────────    ──────────                       │
+│  • User profiles  • Context-aware      • Investigations                 │
+│  • Memory store   • Search history     • Traffic analysis               │
+│  • Auto-summaries • Profile-enriched   • Spec generation                │
+├─────────────────────────────────────────────────────────────────────────┤
+│  visual-thinking                pattern-radar                           │
+│  ───────────────                ─────────────                           │
+│  • Mermaid diagrams             • HN/GitHub scanning                    │
+│  • Version history              • Pattern detection                     │
+│  • draw.io export               • Profile-aware relevance               │
+└─────────────────────────────────────────────────────────────────────────┘
+                                   ↓
+                    ┌────────────────────────┐
+                    │    @brain-jar/core     │
+                    │    Shared Mem0 client  │
+                    │    Common types        │
+                    └────────────────────────┘
+                                   ↓
+                    ┌────────────────────────┐
+                    │        Mem0 Cloud      │
+                    │   Persistent storage   │
+                    └────────────────────────┘
 ```
 
 All plugins share the same user profile and memory infrastructure. Install shared-memory first for the best experience.
@@ -101,6 +109,18 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Skill-level adaptation** from beginner to expert
 - **OpenAPI/TypeScript output** from captured traffic
 
+### visual-thinking v0.1.0 (NEW)
+- **7 MCP tools** for diagram CRUD and export
+- **Mermaid diagrams** (mindmap, flowchart, sequence, ERD, etc.)
+- **Version history** tracks diagram evolution
+- **draw.io integration** via MCP server
+
+### pattern-radar v0.1.0 (NEW)
+- **6 MCP tools** for trend scanning and pattern detection
+- **HN + GitHub** real-time scanning
+- **Profile-aware relevance** scores trends to your domains
+- **Actionable suggestions** (learn, build, explore)
+
 ## Requirements
 
 - Claude Code CLI
@@ -109,6 +129,8 @@ All plugins share the same user profile and memory infrastructure. Install share
   - shared-memory: [Mem0](https://app.mem0.ai) (free tier: 10,000 memories)
   - perplexity-search: [Perplexity](https://www.perplexity.ai/settings/api)
   - forensics: Works locally, Mem0 optional for persistence
+  - visual-thinking: Works locally, Mem0 optional via shared-memory
+  - pattern-radar: Works without keys (GitHub token optional for higher rate limits)
 
 ## License
 

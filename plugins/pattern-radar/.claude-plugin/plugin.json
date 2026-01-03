@@ -1,0 +1,17 @@
+{
+  "name": "pattern-radar",
+  "version": "0.1.0",
+  "description": "Personalized trend detection at the intersection of your knowledge and emerging opportunities",
+  "author": {
+    "name": "Nick Mason"
+  },
+  "license": "MIT",
+  "keywords": ["trends", "patterns", "opportunities", "mcp", "hacker-news", "github"],
+  "mcpServers": {
+    "pattern-radar": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/run.js"]
+    }
+  },
+  "skills": "./skills/"
+}
