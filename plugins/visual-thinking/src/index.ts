@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   // Create MCP server
   const server = new McpServer({
     name: 'visual-thinking',
-    version: '0.1.3',
+    version: '0.2.0',
   });
 
   // --- Diagram Tools ---
@@ -359,11 +359,16 @@ async function main(): Promise<void> {
       }
 
       if (args.format === 'drawio') {
+        // Generate draw.io URL with Mermaid code pre-loaded
+        // Format: ?create={"type":"mermaid","data":"<mermaid_code>"}
+        const createObj = JSON.stringify({ type: 'mermaid', data: diagram.mermaid });
+        const url = `https://app.diagrams.net/?create=${encodeURIComponent(createObj)}`;
+
         return {
           content: [
             {
               type: 'text' as const,
-              text: `Draw.io export requires the drawio-mcp-server.\n\nInstall from: https://github.com/lgazo/drawio-mcp-server\n\nOnce installed, use the drawio MCP tools to create diagrams.\n\nMermaid content for reference:\n\`\`\`mermaid\n${diagram.mermaid}\n\`\`\``,
+              text: `**Open in Draw.io:** ${url}\n\nClick the link to open and edit your diagram in diagrams.net.\nThe Mermaid code will be converted to editable shapes automatically.`,
             },
           ],
         };

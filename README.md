@@ -112,8 +112,8 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **OpenAPI/TypeScript output** from captured traffic
 - **Bundled dependencies** for instant marketplace install
 
-### visual-thinking v0.1.3
-- **Renamed /resume to /continue-diagram** to avoid Claude Code collision
+### visual-thinking v0.2.0
+- **One-click draw.io integration** - export generates clickable URL that opens diagram in diagrams.net
 - **7 MCP tools** for diagram CRUD and export
 - **Mermaid diagrams** (mindmap, flowchart, sequence, ERD, etc.)
 - **Version history** tracks diagram evolution
