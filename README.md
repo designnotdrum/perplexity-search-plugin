@@ -115,7 +115,7 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Version history** tracks diagram evolution
 - **draw.io integration** via MCP server
 
-### pattern-radar v0.1.0 (NEW)
+### pattern-radar v0.1.1
 - **6 MCP tools** for trend scanning and pattern detection
 - **HN + GitHub** real-time scanning
 - **Profile-aware relevance** scores trends to your domains
