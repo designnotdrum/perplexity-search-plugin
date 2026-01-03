@@ -3,6 +3,9 @@
  *
  * Profile is shared across all brain-jar plugins at:
  * ~/.config/brain-jar/user-profile.json
+ *
+ * With Mem0 configured, profile is synced to cloud as append-only snapshots.
+ * Local file acts as cache, Mem0 is source of truth.
  */
 
 import * as fs from 'fs/promises';
@@ -10,15 +13,27 @@ import * as path from 'path';
 import * as os from 'os';
 import { UserProfile, OnboardingQuestion, InferredPreference } from './types';
 import { randomUUID } from 'crypto';
+import type { Mem0Client, ProfileSnapshot } from '../mem0-client';
 
 const PROFILE_PATH = path.join(os.homedir(), '.config', 'brain-jar', 'user-profile.json');
 const INFERENCES_PATH = path.join(os.homedir(), '.config', 'brain-jar', 'pending-inferences.json');
 
 export class ProfileManager {
+  private mem0Client: Mem0Client | null = null;
+  private lastSyncedProfile: string | null = null; // JSON string for deep compare
+
   constructor(
     private profilePath: string = PROFILE_PATH,
     private inferencesPath: string = INFERENCES_PATH
   ) {}
+
+  /**
+   * Sets the Mem0 client for cloud sync.
+   * Call this after construction if Mem0 is configured.
+   */
+  setMem0Client(client: Mem0Client): void {
+    this.mem0Client = client;
+  }
 
   /**
    * Loads user profile from disk.
@@ -53,13 +68,100 @@ export class ProfileManager {
   }
 
   /**
-   * Saves profile to disk.
+   * Saves profile to disk and syncs to Mem0 if configured.
    */
-  async save(profile: UserProfile): Promise<void> {
+  async save(profile: UserProfile, skipMem0Sync: boolean = false): Promise<void> {
     const dir = path.dirname(this.profilePath);
     await fs.mkdir(dir, { recursive: true });
     profile.meta.lastUpdated = new Date().toISOString();
     await fs.writeFile(this.profilePath, JSON.stringify(profile, null, 2));
+
+    // Sync to Mem0 if configured and profile changed
+    if (!skipMem0Sync && this.mem0Client) {
+      await this.pushSnapshot(profile);
+    }
+  }
+
+  // --- Mem0 Sync Methods ---
+
+  /**
+   * Syncs profile from Mem0 (source of truth).
+   * If Mem0 has a newer profile, updates local cache.
+   * If local is newer or Mem0 is empty, pushes to Mem0.
+   */
+  async syncFromMem0(): Promise<{ action: 'pulled' | 'pushed' | 'skipped'; profile: UserProfile }> {
+    if (!this.mem0Client) {
+      const profile = await this.load();
+      return { action: 'skipped', profile };
+    }
+
+    const localProfile = await this.load();
+    const remoteSnapshot = await this.mem0Client.getLatestProfile();
+
+    if (!remoteSnapshot) {
+      // No remote profile - push local as first snapshot
+      console.log('[ProfileManager] No remote profile found, pushing local to Mem0');
+      await this.pushSnapshot(localProfile);
+      return { action: 'pushed', profile: localProfile };
+    }
+
+    // Compare timestamps to determine which is newer
+    const localTime = new Date(localProfile.meta.lastUpdated).getTime();
+    const remoteTime = new Date(remoteSnapshot.timestamp).getTime();
+
+    if (remoteTime > localTime) {
+      // Remote is newer - update local cache
+      console.log('[ProfileManager] Remote profile is newer, updating local cache');
+      await this.save(remoteSnapshot.profile, true); // Skip Mem0 sync to avoid loop
+      this.lastSyncedProfile = JSON.stringify(remoteSnapshot.profile);
+      return { action: 'pulled', profile: remoteSnapshot.profile };
+    } else if (localTime > remoteTime) {
+      // Local is newer - push to Mem0
+      console.log('[ProfileManager] Local profile is newer, pushing to Mem0');
+      await this.pushSnapshot(localProfile);
+      return { action: 'pushed', profile: localProfile };
+    }
+
+    // Same time - no action needed
+    this.lastSyncedProfile = JSON.stringify(localProfile);
+    return { action: 'skipped', profile: localProfile };
+  }
+
+  /**
+   * Pushes a new profile snapshot to Mem0.
+   * Only pushes if profile has actually changed (deep compare).
+   */
+  async pushSnapshot(profile: UserProfile): Promise<boolean> {
+    if (!this.mem0Client) {
+      return false;
+    }
+
+    const profileJson = JSON.stringify(profile);
+
+    // Skip if profile hasn't changed since last sync
+    if (this.lastSyncedProfile === profileJson) {
+      return false;
+    }
+
+    const memoryId = await this.mem0Client.saveProfileSnapshot(profile);
+    if (memoryId) {
+      this.lastSyncedProfile = profileJson;
+      console.log('[ProfileManager] Profile snapshot saved to Mem0:', memoryId);
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Gets profile history from Mem0.
+   */
+  async getHistory(since?: Date, limit?: number): Promise<ProfileSnapshot[]> {
+    if (!this.mem0Client) {
+      return [];
+    }
+
+    return this.mem0Client.getProfileHistory(since, limit);
   }
 
   /**

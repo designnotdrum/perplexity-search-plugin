@@ -66,6 +66,18 @@ async function main(): Promise<void> {
   const profileManager = new ProfileManager();
   const inferenceEngine = new InferenceEngine();
 
+  // Connect profile manager to Mem0 if configured
+  if (mem0Client) {
+    profileManager.setMem0Client(mem0Client);
+    // Sync profile from Mem0 on startup
+    try {
+      const syncResult = await profileManager.syncFromMem0();
+      console.error(`[shared-memory] Profile sync: ${syncResult.action}`);
+    } catch (error) {
+      console.error('[shared-memory] Profile sync failed:', error);
+    }
+  }
+
   if (!isConfigured) {
     console.error('[shared-memory] Warning: Not configured. Run with --setup or create config file.');
     console.error('[shared-memory] Local storage will work, but Mem0 cloud sync disabled.');
@@ -74,7 +86,7 @@ async function main(): Promise<void> {
   // Create MCP server
   const server = new McpServer({
     name: 'shared-memory',
-    version: '0.2.0',
+    version: '1.1.0',
   });
 
   // Register tools
@@ -463,6 +475,61 @@ async function main(): Promise<void> {
                   evidence: i.evidence,
                   confidence: i.confidence,
                 })),
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'get_profile_history',
+    'Get profile change history from Mem0 (shows how profile evolved over time)',
+    {
+      since: z.string().optional().describe('ISO date string to filter history from (e.g., "2024-01-01")'),
+      limit: z.number().optional().describe('Maximum snapshots to return (default: 10)'),
+    },
+    async (args: { since?: string; limit?: number }) => {
+      const since = args.since ? new Date(args.since) : undefined;
+      const limit = args.limit || 10;
+
+      const snapshots = await profileManager.getHistory(since, limit);
+
+      if (snapshots.length === 0) {
+        const reason = mem0Client
+          ? 'No profile history found in Mem0.'
+          : 'Profile history requires Mem0 configuration.';
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: reason,
+            },
+          ],
+        };
+      }
+
+      const formatted = snapshots.map((s) => ({
+        timestamp: s.timestamp,
+        identity: s.profile.identity,
+        technical: {
+          languages: s.profile.technical.languages,
+          frameworks: s.profile.technical.frameworks,
+        },
+        workingStyle: s.profile.workingStyle,
+      }));
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                message: `Found ${snapshots.length} profile snapshot(s)`,
+                snapshots: formatted,
               },
               null,
               2
