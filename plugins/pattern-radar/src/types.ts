@@ -57,7 +57,7 @@ export interface ValidationResult {
  */
 export interface Signal {
   id: string;
-  source: 'hackernews' | 'github' | 'perplexity';
+  source: 'hackernews' | 'github' | 'perplexity' | 'reddit' | 'rss';
   title: string;
   url?: string;
   content?: string;

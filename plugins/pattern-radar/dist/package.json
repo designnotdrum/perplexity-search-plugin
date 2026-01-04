@@ -1,6 +1,6 @@
 {
   "name": "pattern-radar-mcp",
-  "version": "0.3.0",
+  "version": "0.4.1",
   "description": "MCP server for personalized trend and pattern detection",
   "main": "dist/index.js",
   "scripts": {},

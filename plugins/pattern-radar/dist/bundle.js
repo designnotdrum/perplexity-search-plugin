@@ -6,6 +6,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __esm = (fn, res) => function __init() {
+  return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
+};
 var __commonJS = (cb, mod) => function __require() {
   return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
@@ -6787,6 +6790,995 @@ var require_dist = __commonJS({
     module2.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.default = formatsPlugin;
+  }
+});
+
+// plugins/pattern-radar/src/sources/hackernews.ts
+var HN_ALGOLIA_BASE, HackerNewsSource;
+var init_hackernews = __esm({
+  "plugins/pattern-radar/src/sources/hackernews.ts"() {
+    "use strict";
+    HN_ALGOLIA_BASE = "https://hn.algolia.com/api/v1";
+    HackerNewsSource = class {
+      /**
+       * Get front page stories
+       */
+      async getFrontPage(limit = 30) {
+        try {
+          const response = await fetch(`${HN_ALGOLIA_BASE}/search?tags=front_page&hitsPerPage=${limit}`);
+          if (!response.ok) {
+            throw new Error(`HN API error: ${response.status}`);
+          }
+          const data = await response.json();
+          const stories = data.hits.map((hit) => this.parseStory(hit));
+          const signals = stories.map((s) => this.storyToSignal(s));
+          return {
+            source: "hackernews",
+            signals,
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (error48) {
+          return {
+            source: "hackernews",
+            signals: [],
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            error: error48 instanceof Error ? error48.message : "Unknown error"
+          };
+        }
+      }
+      /**
+       * Search HN for a topic
+       */
+      async search(query, limit = 20) {
+        try {
+          const encoded = encodeURIComponent(query);
+          const response = await fetch(
+            `${HN_ALGOLIA_BASE}/search?query=${encoded}&tags=story&hitsPerPage=${limit}`
+          );
+          if (!response.ok) {
+            throw new Error(`HN API error: ${response.status}`);
+          }
+          const data = await response.json();
+          const stories = data.hits.map((hit) => this.parseStory(hit));
+          const signals = stories.map((s) => this.storyToSignal(s));
+          return {
+            source: "hackernews",
+            signals,
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (error48) {
+          return {
+            source: "hackernews",
+            signals: [],
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            error: error48 instanceof Error ? error48.message : "Unknown error"
+          };
+        }
+      }
+      /**
+       * Get recent stories (last 24h with high engagement)
+       */
+      async getRecent(minPoints = 50, limit = 30) {
+        try {
+          const yesterday = Math.floor((Date.now() - 24 * 60 * 60 * 1e3) / 1e3);
+          const response = await fetch(
+            `${HN_ALGOLIA_BASE}/search?tags=story&numericFilters=points>=${minPoints},created_at_i>${yesterday}&hitsPerPage=${limit}`
+          );
+          if (!response.ok) {
+            throw new Error(`HN API error: ${response.status}`);
+          }
+          const data = await response.json();
+          const stories = data.hits.map((hit) => this.parseStory(hit));
+          const signals = stories.map((s) => this.storyToSignal(s));
+          return {
+            source: "hackernews",
+            signals,
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (error48) {
+          return {
+            source: "hackernews",
+            signals: [],
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            error: error48 instanceof Error ? error48.message : "Unknown error"
+          };
+        }
+      }
+      parseStory(hit) {
+        return {
+          id: hit.objectID,
+          title: hit.title || "",
+          url: hit.url,
+          points: hit.points || 0,
+          numComments: hit.num_comments || 0,
+          author: hit.author || "",
+          createdAt: hit.created_at || (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+      storyToSignal(story) {
+        return {
+          id: `hn-${story.id}`,
+          source: "hackernews",
+          title: story.title,
+          url: story.url,
+          score: story.points,
+          timestamp: story.createdAt,
+          metadata: {
+            comments: story.numComments,
+            author: story.author,
+            hnUrl: `https://news.ycombinator.com/item?id=${story.id}`
+          }
+        };
+      }
+    };
+  }
+});
+
+// plugins/pattern-radar/src/sources/github.ts
+var GITHUB_API_BASE, GitHubSource;
+var init_github = __esm({
+  "plugins/pattern-radar/src/sources/github.ts"() {
+    "use strict";
+    GITHUB_API_BASE = "https://api.github.com";
+    GitHubSource = class {
+      token;
+      constructor(token) {
+        this.token = token;
+      }
+      getHeaders() {
+        const headers = {
+          Accept: "application/vnd.github.v3+json",
+          "User-Agent": "pattern-radar-mcp"
+        };
+        if (this.token) {
+          headers.Authorization = `token ${this.token}`;
+        }
+        return headers;
+      }
+      /**
+       * Search for trending repos by stars gained recently
+       */
+      async getTrending(language, since = "weekly", limit = 20) {
+        try {
+          const daysAgo = since === "daily" ? 1 : since === "weekly" ? 7 : 30;
+          const dateStr = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
+          let query = `created:>${dateStr}`;
+          if (language) {
+            query += ` language:${language}`;
+          }
+          const response = await fetch(
+            `${GITHUB_API_BASE}/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${limit}`,
+            { headers: this.getHeaders() }
+          );
+          if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+          }
+          const data = await response.json();
+          const repos = data.items.map((item) => this.parseRepo(item));
+          const signals = repos.map((r) => this.repoToSignal(r));
+          return {
+            source: "github",
+            signals,
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (error48) {
+          return {
+            source: "github",
+            signals: [],
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            error: error48 instanceof Error ? error48.message : "Unknown error"
+          };
+        }
+      }
+      /**
+       * Search repos by topic
+       */
+      async searchByTopic(topic, limit = 20) {
+        try {
+          const response = await fetch(
+            `${GITHUB_API_BASE}/search/repositories?q=topic:${encodeURIComponent(topic)}&sort=stars&order=desc&per_page=${limit}`,
+            { headers: this.getHeaders() }
+          );
+          if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+          }
+          const data = await response.json();
+          const repos = data.items.map((item) => this.parseRepo(item));
+          const signals = repos.map((r) => this.repoToSignal(r));
+          return {
+            source: "github",
+            signals,
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (error48) {
+          return {
+            source: "github",
+            signals: [],
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            error: error48 instanceof Error ? error48.message : "Unknown error"
+          };
+        }
+      }
+      /**
+       * Search repos by query
+       */
+      async search(query, limit = 20) {
+        try {
+          const response = await fetch(
+            `${GITHUB_API_BASE}/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${limit}`,
+            { headers: this.getHeaders() }
+          );
+          if (!response.ok) {
+            throw new Error(`GitHub API error: ${response.status}`);
+          }
+          const data = await response.json();
+          const repos = data.items.map((item) => this.parseRepo(item));
+          const signals = repos.map((r) => this.repoToSignal(r));
+          return {
+            source: "github",
+            signals,
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString()
+          };
+        } catch (error48) {
+          return {
+            source: "github",
+            signals: [],
+            scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
+            error: error48 instanceof Error ? error48.message : "Unknown error"
+          };
+        }
+      }
+      parseRepo(item) {
+        return {
+          name: item.name || "",
+          fullName: item.full_name || "",
+          description: item.description || "",
+          url: item.html_url || "",
+          stars: item.stargazers_count || 0,
+          starsToday: 0,
+          // Not available from search API
+          language: item.language || "Unknown",
+          topics: item.topics || []
+        };
+      }
+      repoToSignal(repo) {
+        return {
+          id: `gh-${repo.fullName}`,
+          source: "github",
+          title: repo.fullName,
+          url: repo.url,
+          content: repo.description,
+          score: repo.stars,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          metadata: {
+            language: repo.language,
+            topics: repo.topics,
+            starsToday: repo.starsToday
+          }
+        };
+      }
+    };
+  }
+});
+
+// plugins/pattern-radar/src/adapters/registry.ts
+function registerAdapter(adapter) {
+  registry2.register(adapter);
+}
+function getAdapter(type) {
+  return registry2.get(type);
+}
+function listAdapters() {
+  return registry2.list();
+}
+var AdapterRegistryImpl, registry2;
+var init_registry = __esm({
+  "plugins/pattern-radar/src/adapters/registry.ts"() {
+    "use strict";
+    AdapterRegistryImpl = class {
+      adapters = /* @__PURE__ */ new Map();
+      register(adapter) {
+        if (this.adapters.has(adapter.type)) {
+          console.warn(`Adapter ${adapter.type} already registered, overwriting`);
+        }
+        this.adapters.set(adapter.type, adapter);
+      }
+      get(type) {
+        return this.adapters.get(type);
+      }
+      list() {
+        return Array.from(this.adapters.values());
+      }
+    };
+    registry2 = new AdapterRegistryImpl();
+  }
+});
+
+// plugins/pattern-radar/src/mapper/types.ts
+var init_types = __esm({
+  "plugins/pattern-radar/src/mapper/types.ts"() {
+    "use strict";
+  }
+});
+
+// plugins/pattern-radar/src/mapper/mappings.ts
+function findMatchingDomain(topic) {
+  const topicLower = topic.toLowerCase();
+  for (const mapping of CURATED_MAPPINGS) {
+    for (const keyword of mapping.keywords) {
+      if (topicLower.includes(keyword)) {
+        return mapping;
+      }
+    }
+  }
+  return void 0;
+}
+var CURATED_MAPPINGS;
+var init_mappings = __esm({
+  "plugins/pattern-radar/src/mapper/mappings.ts"() {
+    "use strict";
+    CURATED_MAPPINGS = [
+      {
+        domain: "sports/football",
+        keywords: ["football", "soccer", "premier league", "la liga", "champions league", "bundesliga", "serie a", "world cup", "uefa"],
+        sourceTypes: ["reddit", "rss"],
+        discoveryHints: "Look for team-specific subreddits (r/reddevils, r/gunners, r/LiverpoolFC), league subreddits (r/soccer, r/PremierLeague)"
+      },
+      {
+        domain: "sports/american-football",
+        keywords: ["nfl", "american football", "super bowl", "touchdown"],
+        sourceTypes: ["reddit", "rss"],
+        discoveryHints: "Team subreddits (r/eagles, r/patriots, r/cowboys), r/nfl"
+      },
+      {
+        domain: "sports/basketball",
+        keywords: ["nba", "basketball", "wnba"],
+        sourceTypes: ["reddit", "rss"],
+        discoveryHints: "Team subreddits, r/nba"
+      },
+      {
+        domain: "sports/baseball",
+        keywords: ["mlb", "baseball", "world series"],
+        sourceTypes: ["reddit", "rss"],
+        discoveryHints: "Team subreddits, r/baseball"
+      },
+      {
+        domain: "finance/stocks",
+        keywords: ["stocks", "investing", "trading", "market", "portfolio", "dividend", "etf"],
+        sourceTypes: ["reddit", "rss", "hackernews"],
+        discoveryHints: "r/stocks, r/investing, r/wallstreetbets, Yahoo Finance RSS"
+      },
+      {
+        domain: "finance/crypto",
+        keywords: ["crypto", "bitcoin", "ethereum", "blockchain", "defi", "nft", "web3"],
+        sourceTypes: ["reddit", "rss", "hackernews", "github"],
+        discoveryHints: "r/cryptocurrency, r/bitcoin, r/ethereum, CoinDesk RSS"
+      },
+      {
+        domain: "gaming",
+        keywords: ["gaming", "video games", "esports", "playstation", "xbox", "nintendo", "steam", "pc gaming"],
+        sourceTypes: ["reddit", "rss"],
+        discoveryHints: "Game-specific subreddits, r/gaming, r/pcgaming, r/Games"
+      },
+      {
+        domain: "tech/programming",
+        keywords: ["programming", "software", "coding", "developer", "engineering"],
+        sourceTypes: ["hackernews", "github", "reddit"],
+        discoveryHints: "r/programming, r/learnprogramming, language-specific subs"
+      },
+      {
+        domain: "tech/ai",
+        keywords: ["ai", "artificial intelligence", "machine learning", "llm", "gpt", "claude", "neural network", "deep learning"],
+        sourceTypes: ["hackernews", "github", "reddit", "rss"],
+        discoveryHints: "r/MachineLearning, r/LocalLLaMA, r/artificial, arXiv RSS"
+      },
+      {
+        domain: "tech/startups",
+        keywords: ["startup", "entrepreneur", "founder", "vc", "venture capital", "saas", "b2b"],
+        sourceTypes: ["hackernews", "reddit", "rss"],
+        discoveryHints: "r/startups, r/Entrepreneur, TechCrunch RSS"
+      },
+      {
+        domain: "entertainment/movies",
+        keywords: ["movies", "film", "cinema", "oscar", "hollywood", "streaming"],
+        sourceTypes: ["reddit", "rss"],
+        discoveryHints: "r/movies, r/MovieDetails, r/boxoffice"
+      },
+      {
+        domain: "entertainment/tv",
+        keywords: ["tv shows", "television", "streaming", "netflix", "hbo"],
+        sourceTypes: ["reddit", "rss"],
+        discoveryHints: "Show-specific subreddits, r/television"
+      },
+      {
+        domain: "science",
+        keywords: ["science", "research", "physics", "biology", "chemistry", "astronomy", "space"],
+        sourceTypes: ["reddit", "rss", "hackernews"],
+        discoveryHints: "r/science, r/space, r/physics, Nature RSS"
+      }
+    ];
+  }
+});
+
+// plugins/pattern-radar/src/adapters/types.ts
+var init_types2 = __esm({
+  "plugins/pattern-radar/src/adapters/types.ts"() {
+    "use strict";
+  }
+});
+
+// plugins/pattern-radar/src/adapters/hackernews.ts
+var HNSourceInstance, hackernewsAdapter;
+var init_hackernews2 = __esm({
+  "plugins/pattern-radar/src/adapters/hackernews.ts"() {
+    "use strict";
+    init_hackernews();
+    HNSourceInstance = class {
+      id;
+      adapter = "hackernews";
+      topic;
+      config;
+      source;
+      constructor(topic, config2) {
+        this.topic = topic;
+        this.config = config2;
+        this.id = config2.searchQuery ? `hackernews:search:${config2.searchQuery}` : `hackernews:${topic}`;
+        this.source = new HackerNewsSource();
+      }
+      async fetch(options) {
+        const query = this.config.searchQuery || this.topic;
+        const limit = options?.limit || 20;
+        const result = await this.source.search(query, limit);
+        return result.signals;
+      }
+      async healthCheck() {
+        try {
+          const result = await this.source.search("test", 1);
+          return {
+            healthy: !result.error,
+            message: result.error || "HN API responding",
+            lastChecked: /* @__PURE__ */ new Date()
+          };
+        } catch (error48) {
+          return {
+            healthy: false,
+            message: error48 instanceof Error ? error48.message : "Unknown error",
+            lastChecked: /* @__PURE__ */ new Date()
+          };
+        }
+      }
+    };
+    hackernewsAdapter = {
+      type: "hackernews",
+      name: "Hacker News",
+      capabilities: ["search", "trending"],
+      requiresAuth: false,
+      freeTierAvailable: true,
+      createInstance(topic, config2) {
+        return new HNSourceInstance(topic, config2);
+      },
+      validateConfig(config2) {
+        return { valid: true };
+      }
+    };
+  }
+});
+
+// plugins/pattern-radar/src/adapters/github.ts
+var GitHubSourceInstance, githubAdapter;
+var init_github2 = __esm({
+  "plugins/pattern-radar/src/adapters/github.ts"() {
+    "use strict";
+    init_github();
+    GitHubSourceInstance = class {
+      id;
+      adapter = "github";
+      topic;
+      config;
+      source;
+      constructor(topic, config2) {
+        this.topic = topic;
+        this.config = config2;
+        const suffix = config2.language ? `:${config2.language}` : "";
+        this.id = `github:${topic}${suffix}`;
+        this.source = new GitHubSource(config2.token);
+      }
+      async fetch(options) {
+        const query = this.config.searchQuery || this.topic;
+        const limit = options?.limit || 20;
+        let searchQuery = query;
+        if (this.config.language) {
+          searchQuery += ` language:${this.config.language}`;
+        }
+        const result = await this.source.search(searchQuery, limit);
+        return result.signals;
+      }
+      async healthCheck() {
+        try {
+          const result = await this.source.search("test", 1);
+          return {
+            healthy: !result.error,
+            message: result.error || "GitHub API responding",
+            lastChecked: /* @__PURE__ */ new Date()
+          };
+        } catch (error48) {
+          return {
+            healthy: false,
+            message: error48 instanceof Error ? error48.message : "Unknown error",
+            lastChecked: /* @__PURE__ */ new Date()
+          };
+        }
+      }
+    };
+    githubAdapter = {
+      type: "github",
+      name: "GitHub",
+      capabilities: ["search", "trending", "repos"],
+      requiresAuth: false,
+      freeTierAvailable: true,
+      authSetupUrl: "https://github.com/settings/tokens",
+      createInstance(topic, config2) {
+        return new GitHubSourceInstance(topic, config2);
+      },
+      validateConfig(config2) {
+        return { valid: true };
+      }
+    };
+  }
+});
+
+// plugins/pattern-radar/src/adapters/reddit.ts
+var RedditSourceInstance, redditAdapter;
+var init_reddit = __esm({
+  "plugins/pattern-radar/src/adapters/reddit.ts"() {
+    "use strict";
+    RedditSourceInstance = class {
+      id;
+      adapter = "reddit";
+      topic;
+      config;
+      constructor(topic, config2) {
+        this.topic = topic;
+        this.config = config2;
+        this.id = `reddit:r/${config2.subreddit}`;
+      }
+      async fetch(options) {
+        const limit = options?.limit || 25;
+        const sort = this.config.sort || "hot";
+        const subreddit = this.config.subreddit;
+        const url2 = `https://www.reddit.com/r/${subreddit}/${sort}.json?limit=${limit}`;
+        const response = await fetch(url2, {
+          headers: {
+            "User-Agent": "pattern-radar/1.0 (brain-jar plugin)"
+          }
+        });
+        if (!response.ok) {
+          if (response.status === 404) {
+            throw new Error(`Subreddit r/${subreddit} not found`);
+          }
+          throw new Error(`Reddit API error: ${response.status}`);
+        }
+        const data = await response.json();
+        const posts = data?.data?.children || [];
+        return posts.map((post) => ({
+          id: `reddit:${post.data.id}`,
+          source: "reddit",
+          title: post.data.title,
+          url: post.data.url.startsWith("/") ? `https://reddit.com${post.data.url}` : post.data.url,
+          content: post.data.selftext?.slice(0, 500),
+          score: post.data.score,
+          timestamp: new Date(post.data.created_utc * 1e3).toISOString(),
+          metadata: {
+            subreddit: post.data.subreddit,
+            author: post.data.author,
+            numComments: post.data.num_comments,
+            permalink: `https://reddit.com${post.data.permalink}`
+          }
+        }));
+      }
+      async healthCheck() {
+        try {
+          const url2 = `https://www.reddit.com/r/${this.config.subreddit}/about.json`;
+          const response = await fetch(url2, {
+            headers: { "User-Agent": "pattern-radar/1.0" }
+          });
+          if (response.status === 404) {
+            return {
+              healthy: false,
+              message: `Subreddit r/${this.config.subreddit} not found`,
+              lastChecked: /* @__PURE__ */ new Date()
+            };
+          }
+          return {
+            healthy: response.ok,
+            message: response.ok ? "Subreddit accessible" : `HTTP ${response.status}`,
+            lastChecked: /* @__PURE__ */ new Date()
+          };
+        } catch (error48) {
+          return {
+            healthy: false,
+            message: error48 instanceof Error ? error48.message : "Unknown error",
+            lastChecked: /* @__PURE__ */ new Date()
+          };
+        }
+      }
+    };
+    redditAdapter = {
+      type: "reddit",
+      name: "Reddit",
+      capabilities: ["subreddit", "search"],
+      requiresAuth: false,
+      freeTierAvailable: true,
+      authSetupUrl: "https://www.reddit.com/prefs/apps",
+      createInstance(topic, config2) {
+        const redditConfig = config2;
+        if (!redditConfig.subreddit) {
+          throw new Error("Reddit adapter requires subreddit in config");
+        }
+        return new RedditSourceInstance(topic, redditConfig);
+      },
+      validateConfig(config2) {
+        const redditConfig = config2;
+        if (!redditConfig.subreddit) {
+          return { valid: false, errors: ["subreddit is required"] };
+        }
+        if (!/^[a-zA-Z0-9_]+$/.test(redditConfig.subreddit)) {
+          return { valid: false, errors: ["invalid subreddit name"] };
+        }
+        return { valid: true };
+      }
+    };
+  }
+});
+
+// plugins/pattern-radar/src/adapters/rss.ts
+var RSSSourceInstance, rssAdapter;
+var init_rss = __esm({
+  "plugins/pattern-radar/src/adapters/rss.ts"() {
+    "use strict";
+    RSSSourceInstance = class {
+      id;
+      adapter = "rss";
+      topic;
+      config;
+      constructor(topic, config2) {
+        this.topic = topic;
+        this.config = config2;
+        const hostname3 = new URL(config2.url).hostname;
+        this.id = `rss:${config2.name || hostname3}`;
+      }
+      async fetch(options) {
+        const limit = options?.limit || 20;
+        const response = await fetch(this.config.url, {
+          headers: {
+            "User-Agent": "pattern-radar/1.0 (brain-jar plugin)",
+            "Accept": "application/rss+xml, application/xml, text/xml"
+          }
+        });
+        if (!response.ok) {
+          throw new Error(`RSS fetch error: ${response.status}`);
+        }
+        const text = await response.text();
+        const items = this.parseRSS(text);
+        return items.slice(0, limit).map((item, i) => ({
+          id: `rss:${item.guid || `${this.config.url}:${i}`}`,
+          source: "rss",
+          title: item.title || "Untitled",
+          url: item.link,
+          content: item.description?.replace(/<[^>]*>/g, "").slice(0, 500),
+          score: 0,
+          // RSS doesn't have scores
+          timestamp: item.pubDate ? new Date(item.pubDate).toISOString() : (/* @__PURE__ */ new Date()).toISOString(),
+          metadata: {
+            feedUrl: this.config.url,
+            feedName: this.config.name
+          }
+        }));
+      }
+      parseRSS(xml) {
+        const items = [];
+        const itemMatches = xml.match(/<item[\s\S]*?<\/item>/gi) || xml.match(/<entry[\s\S]*?<\/entry>/gi) || [];
+        for (const itemXml of itemMatches) {
+          const title = this.extractTag(itemXml, "title");
+          const link = this.extractTag(itemXml, "link") || this.extractAttr(itemXml, "link", "href");
+          const description = this.extractTag(itemXml, "description") || this.extractTag(itemXml, "summary") || this.extractTag(itemXml, "content");
+          const pubDate = this.extractTag(itemXml, "pubDate") || this.extractTag(itemXml, "published") || this.extractTag(itemXml, "updated");
+          const guid3 = this.extractTag(itemXml, "guid") || this.extractTag(itemXml, "id");
+          items.push({ title, link, description, pubDate, guid: guid3 });
+        }
+        return items;
+      }
+      extractTag(xml, tag) {
+        const match = xml.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, "i"));
+        return match?.[1]?.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, "$1").trim();
+      }
+      extractAttr(xml, tag, attr) {
+        const match = xml.match(new RegExp(`<${tag}[^>]*${attr}=["']([^"']+)["']`, "i"));
+        return match?.[1];
+      }
+      async healthCheck() {
+        try {
+          const response = await fetch(this.config.url, {
+            method: "HEAD",
+            headers: { "User-Agent": "pattern-radar/1.0" }
+          });
+          return {
+            healthy: response.ok,
+            message: response.ok ? "Feed accessible" : `HTTP ${response.status}`,
+            lastChecked: /* @__PURE__ */ new Date()
+          };
+        } catch (error48) {
+          return {
+            healthy: false,
+            message: error48 instanceof Error ? error48.message : "Unknown error",
+            lastChecked: /* @__PURE__ */ new Date()
+          };
+        }
+      }
+    };
+    rssAdapter = {
+      type: "rss",
+      name: "RSS/Atom Feed",
+      capabilities: ["feed"],
+      requiresAuth: false,
+      freeTierAvailable: true,
+      createInstance(topic, config2) {
+        const rssConfig = config2;
+        if (!rssConfig.url) {
+          throw new Error("RSS adapter requires url in config");
+        }
+        return new RSSSourceInstance(topic, rssConfig);
+      },
+      validateConfig(config2) {
+        const rssConfig = config2;
+        if (!rssConfig.url) {
+          return { valid: false, errors: ["url is required"] };
+        }
+        try {
+          new URL(rssConfig.url);
+          return { valid: true };
+        } catch {
+          return { valid: false, errors: ["invalid URL"] };
+        }
+      }
+    };
+  }
+});
+
+// plugins/pattern-radar/src/adapters/index.ts
+var adapters_exports = {};
+__export(adapters_exports, {
+  getAdapter: () => getAdapter,
+  githubAdapter: () => githubAdapter,
+  hackernewsAdapter: () => hackernewsAdapter,
+  listAdapters: () => listAdapters,
+  redditAdapter: () => redditAdapter,
+  registerAdapter: () => registerAdapter,
+  registry: () => registry2,
+  rssAdapter: () => rssAdapter
+});
+var init_adapters = __esm({
+  "plugins/pattern-radar/src/adapters/index.ts"() {
+    "use strict";
+    init_types2();
+    init_registry();
+    init_registry();
+    init_hackernews2();
+    init_github2();
+    init_reddit();
+    init_rss();
+    init_hackernews2();
+    init_github2();
+    init_reddit();
+    init_rss();
+    registerAdapter(hackernewsAdapter);
+    registerAdapter(githubAdapter);
+    registerAdapter(redditAdapter);
+    registerAdapter(rssAdapter);
+  }
+});
+
+// plugins/pattern-radar/src/mapper/mapper.ts
+async function loadLearnedMappings(mappings) {
+  learnedMappings = mappings;
+}
+function saveLearnedMapping(mapping) {
+  const existing = learnedMappings.findIndex((m) => m.topic === mapping.topic);
+  if (existing >= 0) {
+    learnedMappings[existing] = mapping;
+  } else {
+    learnedMappings.push(mapping);
+  }
+}
+function getLearnedMappings() {
+  return learnedMappings;
+}
+function findLearnedMapping(topic) {
+  const topicLower = topic.toLowerCase();
+  return learnedMappings.find((m) => m.topic.toLowerCase() === topicLower);
+}
+async function resolveTopic(topic) {
+  const learned = findLearnedMapping(topic);
+  if (learned) {
+    return {
+      topic,
+      sources: learned.sources,
+      resolutionMethod: "learned",
+      matchedDomain: learned.matchedDomain
+    };
+  }
+  const domain2 = findMatchingDomain(topic);
+  if (domain2) {
+    return {
+      topic,
+      sources: domain2.sourceTypes.map((type) => ({
+        adapter: type,
+        config: {},
+        reason: `Curated mapping for ${domain2.domain}`
+      })),
+      resolutionMethod: "curated",
+      matchedDomain: domain2.domain
+    };
+  }
+  return {
+    topic,
+    sources: [],
+    resolutionMethod: "discovered",
+    matchedDomain: void 0
+  };
+}
+function createInstancesForTopic(config2) {
+  const instances = [];
+  for (const source of config2.sources) {
+    const adapter = getAdapter(source.adapter);
+    if (!adapter) {
+      console.warn(`Unknown adapter: ${source.adapter}`);
+      continue;
+    }
+    try {
+      const instance = adapter.createInstance(config2.topic, source.config);
+      instances.push(instance);
+    } catch (error48) {
+      console.warn(`Failed to create ${source.adapter} instance:`, error48);
+    }
+  }
+  return instances;
+}
+var learnedMappings;
+var init_mapper = __esm({
+  "plugins/pattern-radar/src/mapper/mapper.ts"() {
+    "use strict";
+    init_adapters();
+    init_mappings();
+    learnedMappings = [];
+  }
+});
+
+// plugins/pattern-radar/src/mapper/discovery.ts
+function buildDiscoveryPrompt(topic) {
+  const adapters = listAdapters();
+  const adapterList = adapters.map((a) => `- ${a.type}: ${a.capabilities.join(", ")}`).join("\n");
+  return `I need to find sources to track "${topic}".
+
+Available source types:
+${adapterList}
+
+For each applicable source, provide specific configuration:
+- reddit: { "subreddit": "exact_subreddit_name" }
+- rss: { "url": "https://exact.feed.url/rss" }
+- hackernews: { "searchQuery": "search terms" } (optional, defaults to topic)
+- github: { "searchQuery": "search terms", "language": "optional" }
+
+Return JSON only:
+{
+  "sources": [
+    { "adapter": "reddit", "config": { "subreddit": "..." }, "reason": "..." }
+  ],
+  "domain": "category like sports/football or tech/ai",
+  "confidence": "high" | "medium" | "low"
+}
+
+Only include sources you're confident exist. Verify subreddit names are real.`;
+}
+function parseDiscoveryResponse(response) {
+  try {
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!parsed.sources || !Array.isArray(parsed.sources)) {
+      return null;
+    }
+    return {
+      sources: parsed.sources.map((s) => ({
+        adapter: s.adapter,
+        config: s.config || {},
+        reason: s.reason
+      })),
+      domain: parsed.domain,
+      confidence: parsed.confidence || "medium"
+    };
+  } catch {
+    return null;
+  }
+}
+async function discoverSourcesForTopic(topic, perplexitySearch) {
+  const prompt = buildDiscoveryPrompt(topic);
+  try {
+    const response = await perplexitySearch(prompt);
+    return parseDiscoveryResponse(response);
+  } catch (error48) {
+    console.error("Discovery failed:", error48);
+    return null;
+  }
+}
+async function validateDiscoveredSources(sources) {
+  const { getAdapter: getAdapter2 } = await Promise.resolve().then(() => (init_adapters(), adapters_exports));
+  const valid = [];
+  const invalid = [];
+  for (const source of sources) {
+    const adapter = getAdapter2(source.adapter);
+    if (!adapter) {
+      invalid.push(source);
+      continue;
+    }
+    try {
+      const instance = adapter.createInstance("test", source.config);
+      const health = await instance.healthCheck();
+      if (health.healthy) {
+        valid.push(source);
+      } else {
+        invalid.push(source);
+      }
+    } catch {
+      invalid.push(source);
+    }
+  }
+  return { valid, invalid };
+}
+async function discoverAndValidate(topic, perplexitySearch) {
+  const discovered = await discoverSourcesForTopic(topic, perplexitySearch);
+  if (!discovered || discovered.sources.length === 0) {
+    return null;
+  }
+  const { valid } = await validateDiscoveredSources(discovered.sources);
+  if (valid.length === 0) {
+    return null;
+  }
+  return {
+    topic,
+    sources: valid,
+    matchedDomain: discovered.domain,
+    discoveredAt: (/* @__PURE__ */ new Date()).toISOString()
+  };
+}
+var init_discovery = __esm({
+  "plugins/pattern-radar/src/mapper/discovery.ts"() {
+    "use strict";
+    init_adapters();
+  }
+});
+
+// plugins/pattern-radar/src/mapper/index.ts
+var mapper_exports = {};
+__export(mapper_exports, {
+  CURATED_MAPPINGS: () => CURATED_MAPPINGS,
+  createInstancesForTopic: () => createInstancesForTopic,
+  discoverAndValidate: () => discoverAndValidate,
+  discoverSourcesForTopic: () => discoverSourcesForTopic,
+  findMatchingDomain: () => findMatchingDomain,
+  getLearnedMappings: () => getLearnedMappings,
+  loadLearnedMappings: () => loadLearnedMappings,
+  resolveTopic: () => resolveTopic,
+  saveLearnedMapping: () => saveLearnedMapping,
+  validateDiscoveredSources: () => validateDiscoveredSources
+});
+var init_mapper2 = __esm({
+  "plugins/pattern-radar/src/mapper/index.ts"() {
+    "use strict";
+    init_types();
+    init_mappings();
+    init_mapper();
+    init_discovery();
   }
 });
 
@@ -22177,21 +23169,21 @@ var allProcessors = {
 };
 function toJSONSchema(input, params) {
   if ("_idmap" in input) {
-    const registry2 = input;
+    const registry3 = input;
     const ctx2 = initializeContext({ ...params, processors: allProcessors });
     const defs = {};
-    for (const entry of registry2._idmap.entries()) {
+    for (const entry of registry3._idmap.entries()) {
       const [_, schema] = entry;
       process2(schema, ctx2);
     }
     const schemas = {};
     const external = {
-      registry: registry2,
+      registry: registry3,
       uri: params?.uri,
       defs
     };
     ctx2.external = external;
-    for (const entry of registry2._idmap.entries()) {
+    for (const entry of registry3._idmap.entries()) {
       const [key, schema] = entry;
       extractDefs(ctx2, schema);
       schemas[key] = finalize(ctx2, schema);
@@ -29927,261 +30919,9 @@ var StdioServerTransport = class {
   }
 };
 
-// plugins/pattern-radar/src/sources/hackernews.ts
-var HN_ALGOLIA_BASE = "https://hn.algolia.com/api/v1";
-var HackerNewsSource = class {
-  /**
-   * Get front page stories
-   */
-  async getFrontPage(limit = 30) {
-    try {
-      const response = await fetch(`${HN_ALGOLIA_BASE}/search?tags=front_page&hitsPerPage=${limit}`);
-      if (!response.ok) {
-        throw new Error(`HN API error: ${response.status}`);
-      }
-      const data = await response.json();
-      const stories = data.hits.map((hit) => this.parseStory(hit));
-      const signals = stories.map((s) => this.storyToSignal(s));
-      return {
-        source: "hackernews",
-        signals,
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-    } catch (error48) {
-      return {
-        source: "hackernews",
-        signals: [],
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        error: error48 instanceof Error ? error48.message : "Unknown error"
-      };
-    }
-  }
-  /**
-   * Search HN for a topic
-   */
-  async search(query, limit = 20) {
-    try {
-      const encoded = encodeURIComponent(query);
-      const response = await fetch(
-        `${HN_ALGOLIA_BASE}/search?query=${encoded}&tags=story&hitsPerPage=${limit}`
-      );
-      if (!response.ok) {
-        throw new Error(`HN API error: ${response.status}`);
-      }
-      const data = await response.json();
-      const stories = data.hits.map((hit) => this.parseStory(hit));
-      const signals = stories.map((s) => this.storyToSignal(s));
-      return {
-        source: "hackernews",
-        signals,
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-    } catch (error48) {
-      return {
-        source: "hackernews",
-        signals: [],
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        error: error48 instanceof Error ? error48.message : "Unknown error"
-      };
-    }
-  }
-  /**
-   * Get recent stories (last 24h with high engagement)
-   */
-  async getRecent(minPoints = 50, limit = 30) {
-    try {
-      const yesterday = Math.floor((Date.now() - 24 * 60 * 60 * 1e3) / 1e3);
-      const response = await fetch(
-        `${HN_ALGOLIA_BASE}/search?tags=story&numericFilters=points>=${minPoints},created_at_i>${yesterday}&hitsPerPage=${limit}`
-      );
-      if (!response.ok) {
-        throw new Error(`HN API error: ${response.status}`);
-      }
-      const data = await response.json();
-      const stories = data.hits.map((hit) => this.parseStory(hit));
-      const signals = stories.map((s) => this.storyToSignal(s));
-      return {
-        source: "hackernews",
-        signals,
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-    } catch (error48) {
-      return {
-        source: "hackernews",
-        signals: [],
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        error: error48 instanceof Error ? error48.message : "Unknown error"
-      };
-    }
-  }
-  parseStory(hit) {
-    return {
-      id: hit.objectID,
-      title: hit.title || "",
-      url: hit.url,
-      points: hit.points || 0,
-      numComments: hit.num_comments || 0,
-      author: hit.author || "",
-      createdAt: hit.created_at || (/* @__PURE__ */ new Date()).toISOString()
-    };
-  }
-  storyToSignal(story) {
-    return {
-      id: `hn-${story.id}`,
-      source: "hackernews",
-      title: story.title,
-      url: story.url,
-      score: story.points,
-      timestamp: story.createdAt,
-      metadata: {
-        comments: story.numComments,
-        author: story.author,
-        hnUrl: `https://news.ycombinator.com/item?id=${story.id}`
-      }
-    };
-  }
-};
-
-// plugins/pattern-radar/src/sources/github.ts
-var GITHUB_API_BASE = "https://api.github.com";
-var GitHubSource = class {
-  token;
-  constructor(token) {
-    this.token = token;
-  }
-  getHeaders() {
-    const headers = {
-      Accept: "application/vnd.github.v3+json",
-      "User-Agent": "pattern-radar-mcp"
-    };
-    if (this.token) {
-      headers.Authorization = `token ${this.token}`;
-    }
-    return headers;
-  }
-  /**
-   * Search for trending repos by stars gained recently
-   */
-  async getTrending(language, since = "weekly", limit = 20) {
-    try {
-      const daysAgo = since === "daily" ? 1 : since === "weekly" ? 7 : 30;
-      const dateStr = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1e3).toISOString().split("T")[0];
-      let query = `created:>${dateStr}`;
-      if (language) {
-        query += ` language:${language}`;
-      }
-      const response = await fetch(
-        `${GITHUB_API_BASE}/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${limit}`,
-        { headers: this.getHeaders() }
-      );
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status}`);
-      }
-      const data = await response.json();
-      const repos = data.items.map((item) => this.parseRepo(item));
-      const signals = repos.map((r) => this.repoToSignal(r));
-      return {
-        source: "github",
-        signals,
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-    } catch (error48) {
-      return {
-        source: "github",
-        signals: [],
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        error: error48 instanceof Error ? error48.message : "Unknown error"
-      };
-    }
-  }
-  /**
-   * Search repos by topic
-   */
-  async searchByTopic(topic, limit = 20) {
-    try {
-      const response = await fetch(
-        `${GITHUB_API_BASE}/search/repositories?q=topic:${encodeURIComponent(topic)}&sort=stars&order=desc&per_page=${limit}`,
-        { headers: this.getHeaders() }
-      );
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status}`);
-      }
-      const data = await response.json();
-      const repos = data.items.map((item) => this.parseRepo(item));
-      const signals = repos.map((r) => this.repoToSignal(r));
-      return {
-        source: "github",
-        signals,
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-    } catch (error48) {
-      return {
-        source: "github",
-        signals: [],
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        error: error48 instanceof Error ? error48.message : "Unknown error"
-      };
-    }
-  }
-  /**
-   * Search repos by query
-   */
-  async search(query, limit = 20) {
-    try {
-      const response = await fetch(
-        `${GITHUB_API_BASE}/search/repositories?q=${encodeURIComponent(query)}&sort=stars&order=desc&per_page=${limit}`,
-        { headers: this.getHeaders() }
-      );
-      if (!response.ok) {
-        throw new Error(`GitHub API error: ${response.status}`);
-      }
-      const data = await response.json();
-      const repos = data.items.map((item) => this.parseRepo(item));
-      const signals = repos.map((r) => this.repoToSignal(r));
-      return {
-        source: "github",
-        signals,
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString()
-      };
-    } catch (error48) {
-      return {
-        source: "github",
-        signals: [],
-        scannedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        error: error48 instanceof Error ? error48.message : "Unknown error"
-      };
-    }
-  }
-  parseRepo(item) {
-    return {
-      name: item.name || "",
-      fullName: item.full_name || "",
-      description: item.description || "",
-      url: item.html_url || "",
-      stars: item.stargazers_count || 0,
-      starsToday: 0,
-      // Not available from search API
-      language: item.language || "Unknown",
-      topics: item.topics || []
-    };
-  }
-  repoToSignal(repo) {
-    return {
-      id: `gh-${repo.fullName}`,
-      source: "github",
-      title: repo.fullName,
-      url: repo.url,
-      content: repo.description,
-      score: repo.stars,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      metadata: {
-        language: repo.language,
-        topics: repo.topics,
-        starsToday: repo.starsToday
-      }
-    };
-  }
-};
+// plugins/pattern-radar/src/index.ts
+init_hackernews();
+init_github();
 
 // plugins/pattern-radar/src/sources/perplexity.ts
 var PerplexitySource = class {
@@ -30795,8 +31535,48 @@ async function deepValidate(signal) {
   };
 }
 
+// plugins/pattern-radar/src/adapters/loader.ts
+var import_fs = require("fs");
+var import_path = require("path");
+var import_os = require("os");
+init_registry();
+var CUSTOM_ADAPTERS_DIR = (0, import_path.join)((0, import_os.homedir)(), ".config", "pattern-radar", "adapters");
+async function loadCustomAdapters() {
+  if (!(0, import_fs.existsSync)(CUSTOM_ADAPTERS_DIR)) {
+    return [];
+  }
+  const loaded = [];
+  const files = (0, import_fs.readdirSync)(CUSTOM_ADAPTERS_DIR).filter((f) => f.endsWith(".js"));
+  for (const file2 of files) {
+    try {
+      const modulePath = (0, import_path.join)(CUSTOM_ADAPTERS_DIR, file2);
+      const module2 = await import(modulePath);
+      const adapter = module2.default || Object.values(module2).find(
+        (v) => {
+          const obj = v;
+          return obj?.type && obj?.createInstance;
+        }
+      );
+      if (adapter) {
+        registerAdapter(adapter);
+        loaded.push(adapter.type);
+      }
+    } catch (error48) {
+      console.warn(`Failed to load custom adapter ${file2}:`, error48);
+    }
+  }
+  return loaded;
+}
+
 // plugins/pattern-radar/src/index.ts
 async function main() {
+  loadCustomAdapters().then((loaded) => {
+    if (loaded.length > 0) {
+      console.error(`[pattern-radar] Loaded custom adapters: ${loaded.join(", ")}`);
+    }
+  }).catch((err) => {
+    console.error("[pattern-radar] Failed to load custom adapters:", err);
+  });
   const configManager = new ConfigManager();
   const config2 = configManager.loadConfig();
   const githubToken = configManager.getGitHubToken();
@@ -30815,7 +31595,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "pattern-radar",
-    version: "0.3.0"
+    version: "0.4.1"
   });
   server.tool(
     "scan_trends",
@@ -31386,6 +32166,164 @@ Link: ${s.url}
             text: output
           }
         ]
+      };
+    }
+  );
+  server.tool(
+    "scan_topic",
+    "Scan a specific topic across dynamically discovered sources",
+    {
+      topic: external_exports3.string().describe('The topic to scan (e.g., "Premier League", "AI tools", "rust programming")'),
+      limit: external_exports3.number().optional().describe("Max results per source (default: 20)"),
+      discover: external_exports3.boolean().optional().describe("Use LLM to discover sources if not cached (default: true)")
+    },
+    async (args) => {
+      const limit = args.limit || 20;
+      const { resolveTopic: resolveTopic2, createInstancesForTopic: createInstancesForTopic2 } = await Promise.resolve().then(() => (init_mapper2(), mapper_exports));
+      const resolution = await resolveTopic2(args.topic);
+      if (resolution.sources.length === 0) {
+        const hnResult = await hnSource.search(args.topic, limit);
+        const ghResult = await ghSource.search(args.topic, limit);
+        const allSignals2 = [...hnResult.signals || [], ...ghResult.signals || []];
+        const scannedSignals2 = quickScanAll(allSignals2);
+        const validSignals2 = scannedSignals2.filter((s) => s.quickScan?.tier !== "dead");
+        let output2 = `# Topic Scan: ${args.topic}
+
+`;
+        output2 += `*Resolution: fallback (no specific sources found)*
+
+`;
+        output2 += `Found ${validSignals2.length} signals from HN + GitHub
+
+`;
+        output2 += `## Top Signals
+
+`;
+        for (const s of validSignals2.slice(0, 10)) {
+          const badge = s.quickScan?.tier === "verified" ? "\u2713" : "\u26A0";
+          output2 += `- ${badge} [${s.source}] ${s.title}`;
+          if (s.url) output2 += ` - ${s.url}`;
+          output2 += "\n";
+        }
+        output2 += `
+---
+`;
+        output2 += `*Tip: Use scan_trends for more control, or configure domain mappings.*
+`;
+        return {
+          content: [{ type: "text", text: output2 }]
+        };
+      }
+      const topicConfig = {
+        topic: args.topic,
+        sources: resolution.sources,
+        matchedDomain: resolution.matchedDomain,
+        discoveredAt: (/* @__PURE__ */ new Date()).toISOString(),
+        enabled: true
+      };
+      const instances = createInstancesForTopic2(topicConfig);
+      if (instances.length === 0 && resolution.sources.length > 0) {
+        console.error(`[scan_topic] All ${resolution.sources.length} curated sources failed to instantiate - falling back to HN/GitHub`);
+        const hnResult = await hnSource.search(args.topic, limit);
+        const ghResult = await ghSource.search(args.topic, limit);
+        const allSignals2 = [...hnResult.signals || [], ...ghResult.signals || []];
+        const scannedSignals2 = quickScanAll(allSignals2);
+        const validSignals2 = scannedSignals2.filter((s) => s.quickScan?.tier !== "dead");
+        let output2 = `# Topic Scan: ${args.topic}
+
+`;
+        output2 += `*Resolution: ${resolution.resolutionMethod} \u2192 fallback`;
+        if (resolution.matchedDomain) output2 += ` (matched domain: ${resolution.matchedDomain}, but no specific source configs)`;
+        output2 += `*
+
+`;
+        output2 += `\u26A0\uFE0F **Note:** Curated mapping found for "${resolution.matchedDomain}" but requires specific source configs.
+`;
+        output2 += `Use \`/create-adapter\` skill to configure Reddit subreddits or RSS feeds for this domain.
+
+`;
+        output2 += `Found ${validSignals2.length} signals from HN + GitHub fallback
+
+`;
+        output2 += `## Top Signals
+
+`;
+        for (const s of validSignals2.slice(0, 10)) {
+          const badge = s.quickScan?.tier === "verified" ? "\u2713" : "\u26A0";
+          output2 += `- ${badge} [${s.source}] ${s.title}`;
+          if (s.url) output2 += ` - ${s.url}`;
+          output2 += "\n";
+        }
+        output2 += `
+---
+`;
+        output2 += `*Tip: Configure specific sources with \`/create-adapter\` for better results.*
+`;
+        return {
+          content: [{ type: "text", text: output2 }]
+        };
+      }
+      const allSignals = [];
+      const sourceResults = [];
+      for (const instance of instances) {
+        try {
+          const signals = await instance.fetch({ limit });
+          allSignals.push(...signals);
+          sourceResults.push({ adapter: instance.adapter, count: signals.length });
+        } catch (error48) {
+          sourceResults.push({
+            adapter: instance.adapter,
+            count: 0,
+            error: error48 instanceof Error ? error48.message : "Unknown error"
+          });
+        }
+      }
+      const scannedSignals = quickScanAll(allSignals);
+      const validSignals = scannedSignals.filter((s) => s.quickScan?.tier !== "dead");
+      const deadCount = scannedSignals.length - validSignals.length;
+      let output = `# Topic Scan: ${args.topic}
+
+`;
+      output += `*Resolution: ${resolution.resolutionMethod}`;
+      if (resolution.matchedDomain) output += ` (domain: ${resolution.matchedDomain})`;
+      output += `*
+
+`;
+      output += `## Sources Scanned
+
+`;
+      for (const result of sourceResults) {
+        if (result.error) {
+          output += `- \u274C ${result.adapter}: ${result.error}
+`;
+        } else {
+          output += `- \u2713 ${result.adapter}: ${result.count} signals
+`;
+        }
+      }
+      output += "\n";
+      output += `Found ${validSignals.length} valid signals (${deadCount} filtered)
+
+`;
+      output += `## Top Signals
+
+`;
+      for (const s of validSignals.slice(0, 15)) {
+        const badge = s.quickScan?.tier === "verified" ? "\u2713" : "\u26A0";
+        const meta3 = s.quickScan ? `${s.quickScan.engagement.points} pts, ${s.quickScan.engagement.comments} comments` : "";
+        output += `- ${badge} [${s.source}] ${s.title}`;
+        if (meta3) output += ` (${meta3})`;
+        if (s.url) output += `
+  ${s.url}`;
+        output += "\n";
+      }
+      output += `
+---
+`;
+      output += `*Use \`validate_signal\` before adding signals to reports.*
+`;
+      return {
+        content: [{ type: "text", text: output }]
       };
     }
   );

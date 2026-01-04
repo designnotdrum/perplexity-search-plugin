@@ -124,14 +124,15 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Mermaid diagrams** (mindmap, flowchart, sequence, ERD, etc.)
 - **Version history** tracks diagram evolution
 
-### pattern-radar v0.3.0
-- **Two-pass signal validation** - Quick scan filters low-engagement noise during digest, deep validation checks site health on-demand
-- **Quality badges** - Signals show verified/unverified status with engagement stats
-- **validate_signal tool** - Run deep validation before adding signals to competitive reports
-- **Dead project filtering** - Automatically excludes signals with <5 points and <2 comments
-- **Product signal heuristics** - Detects pricing pages, signup flows, app store links, and red flags
-- **7 MCP tools** for trend scanning, pattern detection, and signal validation
-- **HN + GitHub** real-time scanning with profile-aware relevance
+### pattern-radar v0.4.1
+- **Dynamic source architecture** - Pluggable adapter system for adding new source types
+- **Reddit adapter** - Scan subreddits for trends and discussions
+- **RSS adapter** - Monitor any RSS/Atom feed for signals
+- **scan_topic tool** - Topic-based scanning with curated domain mappings
+- **Topic mapper** - 13 curated domains (sports, finance, tech, gaming, etc.) with automatic source selection
+- **Custom adapter support** - `/create-adapter` skill to add your own sources
+- **8 MCP tools** for trend scanning, pattern detection, and signal validation
+- **Graceful fallback** - Falls back to HN/GitHub when curated sources lack specific configs
 
 ## Requirements
 

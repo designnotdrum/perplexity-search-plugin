@@ -11,8 +11,17 @@ import { PatternDetector } from './detector';
 import { ConfigManager } from './config';
 import { Signal, Pattern, DigestResult } from './types';
 import { quickScan, quickScanAll, deepValidate } from './validation';
+import { loadCustomAdapters } from './adapters/loader.js';
 
 async function main(): Promise<void> {
+  // Load custom adapters from ~/.config/pattern-radar/adapters/
+  loadCustomAdapters().then(loaded => {
+    if (loaded.length > 0) {
+      console.error(`[pattern-radar] Loaded custom adapters: ${loaded.join(', ')}`);
+    }
+  }).catch(err => {
+    console.error('[pattern-radar] Failed to load custom adapters:', err);
+  });
   // Initialize components
   const configManager = new ConfigManager();
   const config = configManager.loadConfig();
@@ -39,7 +48,7 @@ async function main(): Promise<void> {
   // Create MCP server
   const server = new McpServer({
     name: 'pattern-radar',
-    version: '0.3.0',
+    version: '0.4.1',
   });
 
   // --- Pattern Radar Tools ---
@@ -615,6 +624,160 @@ async function main(): Promise<void> {
             text: output,
           },
         ],
+      };
+    }
+  );
+
+  server.tool(
+    'scan_topic',
+    'Scan a specific topic across dynamically discovered sources',
+    {
+      topic: z.string().describe('The topic to scan (e.g., "Premier League", "AI tools", "rust programming")'),
+      limit: z.number().optional().describe('Max results per source (default: 20)'),
+      discover: z.boolean().optional().describe('Use LLM to discover sources if not cached (default: true)'),
+    },
+    async (args: { topic: string; limit?: number; discover?: boolean }) => {
+      const limit = args.limit || 20;
+      // Note: 'discover' param reserved for future LLM-based discovery via skill
+      // Currently we use curated mappings + fallback to HN/GitHub
+
+      // Import mapper functions
+      const { resolveTopic, createInstancesForTopic } = await import('./mapper/index.js');
+
+      // Resolve topic to sources
+      const resolution = await resolveTopic(args.topic);
+
+      // If still no sources, fall back to basic HN/GitHub search
+      if (resolution.sources.length === 0) {
+        const hnResult = await hnSource.search(args.topic, limit);
+        const ghResult = await ghSource.search(args.topic, limit);
+        const allSignals = [...(hnResult.signals || []), ...(ghResult.signals || [])];
+        const scannedSignals = quickScanAll(allSignals);
+        const validSignals = scannedSignals.filter(s => s.quickScan?.tier !== 'dead');
+
+        let output = `# Topic Scan: ${args.topic}\n\n`;
+        output += `*Resolution: fallback (no specific sources found)*\n\n`;
+        output += `Found ${validSignals.length} signals from HN + GitHub\n\n`;
+
+        output += `## Top Signals\n\n`;
+        for (const s of validSignals.slice(0, 10)) {
+          const badge = s.quickScan?.tier === 'verified' ? '✓' : '⚠';
+          output += `- ${badge} [${s.source}] ${s.title}`;
+          if (s.url) output += ` - ${s.url}`;
+          output += '\n';
+        }
+
+        output += `\n---\n`;
+        output += `*Tip: Use scan_trends for more control, or configure domain mappings.*\n`;
+
+        return {
+          content: [{ type: 'text' as const, text: output }],
+        };
+      }
+
+      // Create source instances and fetch signals
+      const topicConfig = {
+        topic: args.topic,
+        sources: resolution.sources,
+        matchedDomain: resolution.matchedDomain,
+        discoveredAt: new Date().toISOString(),
+        enabled: true,
+      };
+
+      const instances = createInstancesForTopic(topicConfig);
+
+      // If all curated sources failed to create instances (missing configs),
+      // fall back to HN/GitHub with the topic as search query
+      if (instances.length === 0 && resolution.sources.length > 0) {
+        console.error(`[scan_topic] All ${resolution.sources.length} curated sources failed to instantiate - falling back to HN/GitHub`);
+
+        const hnResult = await hnSource.search(args.topic, limit);
+        const ghResult = await ghSource.search(args.topic, limit);
+        const allSignals = [...(hnResult.signals || []), ...(ghResult.signals || [])];
+        const scannedSignals = quickScanAll(allSignals);
+        const validSignals = scannedSignals.filter(s => s.quickScan?.tier !== 'dead');
+
+        let output = `# Topic Scan: ${args.topic}\n\n`;
+        output += `*Resolution: ${resolution.resolutionMethod} → fallback`;
+        if (resolution.matchedDomain) output += ` (matched domain: ${resolution.matchedDomain}, but no specific source configs)`;
+        output += `*\n\n`;
+        output += `⚠️ **Note:** Curated mapping found for "${resolution.matchedDomain}" but requires specific source configs.\n`;
+        output += `Use \`/create-adapter\` skill to configure Reddit subreddits or RSS feeds for this domain.\n\n`;
+        output += `Found ${validSignals.length} signals from HN + GitHub fallback\n\n`;
+
+        output += `## Top Signals\n\n`;
+        for (const s of validSignals.slice(0, 10)) {
+          const badge = s.quickScan?.tier === 'verified' ? '✓' : '⚠';
+          output += `- ${badge} [${s.source}] ${s.title}`;
+          if (s.url) output += ` - ${s.url}`;
+          output += '\n';
+        }
+
+        output += `\n---\n`;
+        output += `*Tip: Configure specific sources with \`/create-adapter\` for better results.*\n`;
+
+        return {
+          content: [{ type: 'text' as const, text: output }],
+        };
+      }
+
+      const allSignals: Signal[] = [];
+      const sourceResults: { adapter: string; count: number; error?: string }[] = [];
+
+      for (const instance of instances) {
+        try {
+          const signals = await instance.fetch({ limit });
+          allSignals.push(...signals);
+          sourceResults.push({ adapter: instance.adapter, count: signals.length });
+        } catch (error) {
+          sourceResults.push({
+            adapter: instance.adapter,
+            count: 0,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          });
+        }
+      }
+
+      // Run quick scan and filter
+      const scannedSignals = quickScanAll(allSignals);
+      const validSignals = scannedSignals.filter(s => s.quickScan?.tier !== 'dead');
+      const deadCount = scannedSignals.length - validSignals.length;
+
+      // Format output
+      let output = `# Topic Scan: ${args.topic}\n\n`;
+      output += `*Resolution: ${resolution.resolutionMethod}`;
+      if (resolution.matchedDomain) output += ` (domain: ${resolution.matchedDomain})`;
+      output += `*\n\n`;
+
+      output += `## Sources Scanned\n\n`;
+      for (const result of sourceResults) {
+        if (result.error) {
+          output += `- ❌ ${result.adapter}: ${result.error}\n`;
+        } else {
+          output += `- ✓ ${result.adapter}: ${result.count} signals\n`;
+        }
+      }
+      output += '\n';
+
+      output += `Found ${validSignals.length} valid signals (${deadCount} filtered)\n\n`;
+
+      output += `## Top Signals\n\n`;
+      for (const s of validSignals.slice(0, 15)) {
+        const badge = s.quickScan?.tier === 'verified' ? '✓' : '⚠';
+        const meta = s.quickScan
+          ? `${s.quickScan.engagement.points} pts, ${s.quickScan.engagement.comments} comments`
+          : '';
+        output += `- ${badge} [${s.source}] ${s.title}`;
+        if (meta) output += ` (${meta})`;
+        if (s.url) output += `\n  ${s.url}`;
+        output += '\n';
+      }
+
+      output += `\n---\n`;
+      output += `*Use \`validate_signal\` before adding signals to reports.*\n`;
+
+      return {
+        content: [{ type: 'text' as const, text: output }],
       };
     }
   );

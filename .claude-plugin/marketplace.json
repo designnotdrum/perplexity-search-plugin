@@ -44,7 +44,7 @@
     {
       "name": "pattern-radar",
       "description": "Personalized trend detection at the intersection of your knowledge and emerging opportunities",
-      "version": "0.3.0",
+      "version": "0.4.1",
       "source": "./plugins/pattern-radar",
       "author": {
         "name": "Nick Mason"
