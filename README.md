@@ -99,7 +99,8 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Memory stats tool** for health checks and namespace counts
 - **16 MCP tools** for memory, profiles, summaries, and diagnostics
 
-### perplexity-search v2.0.1
+### perplexity-search v2.0.2
+- **Subagent pattern with TL;DR** - skill shows condensed summary + full Perplexity response
 - **Profile-enriched queries** return stack-relevant results
 - **Search memory** builds context over time
 - **Perplexity Sonar** for real-time, cited answers

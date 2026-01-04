@@ -1,6 +1,6 @@
 {
   "name": "perplexity-search-mcp",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "MCP server providing Perplexity search with personalized context enrichment for Claude Code",
   "main": "dist/index.js",
   "bin": {

@@ -184,7 +184,7 @@ async function main() {
   const server = new Server(
     {
       name: 'perplexity-search',
-      version: '2.0.1',
+      version: '2.0.2',
     },
     {
       capabilities: {
