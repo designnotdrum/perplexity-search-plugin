@@ -101,6 +101,61 @@ Use natural recall language:
 - "You've mentioned before that you prefer..."
 - "Based on your experience with Y..."
 
+## Subagent Pattern for Large Retrievals
+
+When searching or listing memories that could return many results (10+), dispatch a Haiku subagent to process and summarize:
+
+**When to use subagent:**
+- Broad searches: "find all memories about preferences"
+- Timeline queries: "memories from last month"
+- Pattern analysis: "what decisions have I made about databases?"
+
+**How to dispatch:**
+
+Use Task tool:
+- `subagent_type`: "general-purpose"
+- `model`: "haiku"
+- `prompt`: "Search user memories and provide a summary.
+
+TASK: [what user is looking for]
+
+STEPS:
+1. Call search_memory with query '[search terms]'
+2. If many results, group by theme or tag
+3. Return a 3-5 sentence summary highlighting:
+   - Key patterns/preferences found
+   - Notable decisions or quotes
+   - Relevant context for the current task
+
+OUTPUT: Concise summary, not raw memory dumps."
+
+**Tell the user:** The subagent's summary. Don't dump all raw memories into context.
+
+**When to use direct tools:**
+- Specific lookups: "what was the exact decision about X?"
+- Small result sets: known to be 1-3 memories
+- When user explicitly asks for full details
+
+**Example flow:**
+
+```
+User: What do I usually prefer for state management?
+
+You: Let me search your memories for state management preferences...
+[Dispatch Haiku subagent]
+
+Subagent returns:
+"Found 7 memories about state management. Key patterns:
+- Strong preference for Zustand over Redux (called Redux 'too much boilerplate')
+- Uses React Query for server state ('keeps server/client state separate')
+- Avoids global state when possible - prefers component-level state
+Notable quote: 'I want the simplest thing that works'"
+
+You: Based on your past preferences, you tend to favor Zustand for client state
+and React Query for server state. You've mentioned wanting "the simplest thing
+that works" - should I keep that philosophy for this feature?
+```
+
 ## Tags to Use
 
 - `preference` - Likes/dislikes
