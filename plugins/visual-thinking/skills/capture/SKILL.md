@@ -104,6 +104,28 @@ Context helps you (and Claude) understand the diagram's purpose when you return 
 - **global** — Personal thinking patterns, reusable across projects
 - **project:<name>** — Specific to a project (auto-detect from working directory)
 
+## Subagent Pattern (Optional)
+
+For complex conversations with lots of context, optionally use a Haiku subagent to draft:
+
+```
+[Task tool with model: "haiku"]
+Prompt: "Review the conversation above about [topic]. Draft a [diagram-type]
+diagram capturing the key concepts discussed. Return only valid Mermaid syntax."
+```
+
+**When this helps:**
+- Long brainstorming sessions with many ideas scattered across messages
+- Technical discussions where the architecture emerged organically
+- When you're unsure what the final structure should be
+
+**Skip the subagent when:**
+- The diagram structure is already clear in your head
+- Simple diagrams with few nodes
+- You're iterating on an existing diagram
+
+The draft is a starting point—review and refine before saving.
+
 ## After Capture
 
 Once captured, diagrams can be:

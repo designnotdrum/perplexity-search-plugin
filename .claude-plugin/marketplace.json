@@ -35,7 +35,7 @@
     {
       "name": "visual-thinking",
       "description": "Persistent Mermaid diagrams that Claude can read, build on, and export",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "source": "./plugins/visual-thinking",
       "author": {
         "name": "Nick Mason"

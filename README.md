@@ -114,14 +114,14 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **OpenAPI/TypeScript output** from captured traffic
 - **Bundled dependencies** for instant marketplace install
 
-### visual-thinking v0.3.0
+### visual-thinking v0.3.1
+- **Optional Haiku drafting** - skill can use subagent to draft diagrams from complex conversations
 - **Hookify integration** - Auto-suggests diagrams when discussing architecture, flows, or data models
 - **Auto-open in browser** - draw.io export opens directly in your browser (no broken terminal URLs)
 - **One-click draw.io integration** - Mermaid diagrams converted to editable draw.io shapes
 - **8 MCP tools** for diagram CRUD, export, and integration setup
 - **Mermaid diagrams** (mindmap, flowchart, sequence, ERD, etc.)
 - **Version history** tracks diagram evolution
-- **Bundled dependencies** for instant marketplace install
 
 ### pattern-radar v0.2.0
 - **Subagent-driven digest** with Haiku generating personalized narratives

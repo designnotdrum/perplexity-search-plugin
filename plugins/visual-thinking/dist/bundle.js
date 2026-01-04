@@ -46217,7 +46217,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "visual-thinking",
-    version: "0.3.0"
+    version: "0.3.1"
   });
   server.tool(
     "create_diagram",
