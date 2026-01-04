@@ -80,6 +80,45 @@ When any trigger condition is met:
 
 **Do NOT announce usage** unless user explicitly asks.
 
+## Subagent Pattern (Recommended)
+
+For better token efficiency, dispatch a Haiku subagent to run the search:
+
+Use Task tool:
+- subagent_type: "general-purpose"
+- model: "haiku"
+- prompt: "Search for information about [topic] using the perplexity_search tool.
+
+Return results in this format:
+
+**TL;DR:** [1-2 sentence summary of the key finding]
+
+**Full Results:**
+[Complete Perplexity response with all citations]
+
+Keep the full response - don't over-summarize. The TL;DR is for quick scanning,
+but the full context is valuable for serendipitous discoveries."
+
+**Why use subagent:**
+- Model efficiency: Haiku handles the API call, saving Opus tokens
+- TL;DR format: Quick summary at top for scanning
+- Full results preserved: Serendipity matters - don't over-filter
+
+**When to skip subagent:**
+- Quick, simple lookups where you need immediate inline response
+- When user is in the middle of a rapid back-and-forth conversation
+
+**Example output:**
+
+```
+**TL;DR:** React Server Components render on the server and stream HTML to the client,
+reducing bundle size and improving initial load time.
+
+**Full Results:**
+React Server Components (RSC) are a new paradigm for building React applications...
+[full Perplexity response with citations]
+```
+
 ## Example
 
 ```
