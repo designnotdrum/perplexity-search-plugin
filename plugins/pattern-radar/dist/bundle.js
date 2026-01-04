@@ -30573,6 +30573,228 @@ var ConfigManager = class {
   }
 };
 
+// plugins/pattern-radar/src/validation/quick-scan.ts
+var QUICK_SCAN_THRESHOLDS = {
+  minPoints: 5,
+  minComments: 2,
+  staleDays: 90
+};
+function quickScan(signal) {
+  const points = signal.score || 0;
+  const comments = signal.metadata.comments || 0;
+  const postDate = new Date(signal.timestamp);
+  const now = /* @__PURE__ */ new Date();
+  const daysSince = Math.floor((now.getTime() - postDate.getTime()) / (1e3 * 60 * 60 * 24));
+  const passesThreshold = points >= QUICK_SCAN_THRESHOLDS.minPoints || comments >= QUICK_SCAN_THRESHOLDS.minComments;
+  const isStale = daysSince > QUICK_SCAN_THRESHOLDS.staleDays;
+  let tier;
+  if (!passesThreshold) {
+    tier = "dead";
+  } else if (isStale) {
+    tier = "unverified";
+  } else {
+    tier = "verified";
+  }
+  return {
+    tier,
+    engagement: { points, comments, passesThreshold },
+    age: { days: daysSince, isStale }
+  };
+}
+function quickScanAll(signals) {
+  return signals.map((signal) => ({
+    ...signal,
+    quickScan: quickScan(signal)
+  }));
+}
+
+// plugins/pattern-radar/src/validation/heuristics.ts
+async function checkHeuristics(url2) {
+  let html = "";
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5e3);
+    const response = await fetch(url2, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; PatternRadar/1.0)"
+      }
+    });
+    clearTimeout(timeout);
+    if (!response.ok) {
+      return {
+        method: "heuristics",
+        isProduct: false,
+        confidence: "high",
+        signals: [],
+        redFlags: [`HTTP ${response.status}`]
+      };
+    }
+    html = await response.text();
+  } catch (error48) {
+    return {
+      method: "heuristics",
+      isProduct: null,
+      confidence: "low",
+      signals: [],
+      redFlags: ["fetch failed"]
+    };
+  }
+  const signals = [];
+  const redFlags = [];
+  if (/\/pricing|\/plans|\/upgrade/i.test(html)) {
+    signals.push("has pricing page");
+  }
+  if (/\/signup|\/register|\/get-started|\/start/i.test(html)) {
+    signals.push("has signup flow");
+  }
+  if (/app\..*\.com|dashboard\.|portal\./i.test(html)) {
+    signals.push("has app subdomain");
+  }
+  if (/apps\.apple\.com|play\.google\.com|chrome\.google\.com/i.test(html)) {
+    signals.push("app store links");
+  }
+  if (/\$\d+.*\/(mo|month|yr|year)|per (month|user|seat)/i.test(html)) {
+    signals.push("pricing visible");
+  }
+  if (/book a demo|schedule demo|request demo/i.test(html)) {
+    signals.push("has demo booking");
+  }
+  if (/customers include|trusted by|used by/i.test(html)) {
+    signals.push("shows customer logos");
+  }
+  if (/coming soon|under construction|launching soon/i.test(html)) {
+    redFlags.push("coming soon page");
+  }
+  if (/parked|domain for sale|buy this domain/i.test(html)) {
+    redFlags.push("parked domain");
+  }
+  if (html.length < 1e3) {
+    redFlags.push("minimal content");
+  }
+  if (/404|not found|page doesn.*exist/i.test(html)) {
+    redFlags.push("404 content");
+  }
+  if (/vercel|netlify|heroku.*404|deployment.*failed/i.test(html)) {
+    redFlags.push("failed deployment");
+  }
+  let isProduct;
+  let confidence;
+  if (redFlags.length >= 1 && signals.length === 0) {
+    isProduct = false;
+    confidence = "high";
+  } else if (signals.length >= 3) {
+    isProduct = true;
+    confidence = "high";
+  } else if (signals.length >= 2) {
+    isProduct = true;
+    confidence = "medium";
+  } else if (signals.length >= 1) {
+    isProduct = null;
+    confidence = "low";
+  } else {
+    isProduct = null;
+    confidence = "low";
+  }
+  return { method: "heuristics", isProduct, confidence, signals, redFlags };
+}
+
+// plugins/pattern-radar/src/validation/perplexity-check.ts
+async function checkWithPerplexity(url2) {
+  let domain2;
+  try {
+    domain2 = new URL(url2).hostname.replace(/^www\./, "");
+  } catch {
+    return {
+      method: "perplexity",
+      isProduct: null,
+      confidence: "low",
+      signals: [],
+      redFlags: ["invalid url"]
+    };
+  }
+  const _query = `Is ${domain2} an active product or company? Looking for: paying customers, funding, team size, launch date, active development.`;
+  return {
+    method: "perplexity",
+    isProduct: null,
+    confidence: "low",
+    signals: [],
+    redFlags: ["perplexity not integrated - use heuristics"]
+  };
+}
+
+// plugins/pattern-radar/src/validation/deep-validate.ts
+async function checkSiteHealth(url2) {
+  const checkedAt = (/* @__PURE__ */ new Date()).toISOString();
+  if (!url2) {
+    return { status: null, isLive: false, checkedAt };
+  }
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5e3);
+    const response = await fetch(url2, {
+      method: "HEAD",
+      signal: controller.signal,
+      redirect: "follow"
+    });
+    clearTimeout(timeout);
+    return {
+      status: response.status,
+      isLive: response.status >= 200 && response.status < 400,
+      checkedAt
+    };
+  } catch {
+    return { status: null, isLive: false, checkedAt };
+  }
+}
+async function detectProductSignals(url2) {
+  if (!url2) {
+    return {
+      method: "heuristics",
+      isProduct: null,
+      confidence: "low",
+      signals: [],
+      redFlags: ["no url"]
+    };
+  }
+  const heuristics = await checkHeuristics(url2);
+  if (heuristics.confidence === "high") {
+    return heuristics;
+  }
+  const perplexityResult = await checkWithPerplexity(url2);
+  return {
+    method: "both",
+    isProduct: perplexityResult.isProduct ?? heuristics.isProduct,
+    confidence: perplexityResult.confidence,
+    signals: [...heuristics.signals, ...perplexityResult.signals],
+    redFlags: [...heuristics.redFlags, ...perplexityResult.redFlags]
+  };
+}
+async function deepValidate(signal) {
+  const [siteHealth, productSignals] = await Promise.all([
+    checkSiteHealth(signal.url),
+    detectProductSignals(signal.url)
+  ]);
+  const daysSincePost = signal.quickScan?.age.days || 0;
+  const isStale = daysSincePost > 90;
+  let overallVerdict;
+  if (!siteHealth.isLive) {
+    overallVerdict = "dead";
+  } else if (productSignals.redFlags.length > 0 || isStale) {
+    overallVerdict = "caution";
+  } else if (productSignals.isProduct && productSignals.confidence !== "low") {
+    overallVerdict = "verified";
+  } else {
+    overallVerdict = "caution";
+  }
+  return {
+    siteHealth,
+    recency: { isStale, daysSincePost },
+    productSignals,
+    overallVerdict
+  };
+}
+
 // plugins/pattern-radar/src/index.ts
 async function main() {
   const configManager = new ConfigManager();
@@ -30593,7 +30815,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "pattern-radar",
-    version: "0.2.0"
+    version: "0.3.0"
   });
   server.tool(
     "scan_trends",
@@ -30625,17 +30847,20 @@ async function main() {
           allSignals.push(...ghResult.signals);
         }
       }
-      const patterns = detector.detectPatterns(allSignals, userDomains);
+      const scannedSignals = quickScanAll(allSignals);
+      const validSignals = scannedSignals.filter((s) => s.quickScan?.tier !== "dead");
+      const deadCount = scannedSignals.length - validSignals.length;
+      const patterns = detector.detectPatterns(validSignals, userDomains);
       const result = {
         patterns,
-        topSignals: allSignals.slice(0, 10),
+        topSignals: validSignals.slice(0, 10),
         domains: userDomains,
         generatedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
       let output = `# Trend Scan: ${args.topic}
 
 `;
-      output += `Found ${allSignals.length} signals, ${patterns.length} patterns
+      output += `Found ${validSignals.length} valid signals (${deadCount} filtered), ${patterns.length} patterns
 `;
       output += `Your domains: ${userDomains.join(", ") || "none set"}
 
@@ -30670,14 +30895,19 @@ ${errors.map((e) => `- ${e}`).join("\n")}
       output += `## Top Signals
 
 `;
-      for (const s of allSignals.slice(0, 10)) {
-        output += `- [${s.source}] ${s.title} (score: ${s.score})`;
+      for (const s of validSignals.slice(0, 10)) {
+        const badge = s.quickScan?.tier === "verified" ? "\u2713" : "\u26A0";
+        const meta3 = s.quickScan ? `${s.quickScan.engagement.points} pts, ${s.quickScan.engagement.comments} comments` : "";
+        output += `- ${badge} [${s.source}] ${s.title} (${meta3})`;
         if (s.url) output += ` - ${s.url}`;
         output += "\n";
       }
       output += `
 ---
-*For deeper analysis, use perplexity_search with: "${perplexitySource.generateQuery(args.topic, userDomains)}"*`;
+`;
+      output += `*Use \`validate_signal\` before adding signals to reports.*
+`;
+      output += `*For deeper analysis: \`perplexity_search("${perplexitySource.generateQuery(args.topic, userDomains)}")\`*`;
       return {
         content: [
           {
@@ -30705,7 +30935,10 @@ ${errors.map((e) => `- ${e}`).join("\n")}
       if (!ghResult.error) {
         allSignals.push(...ghResult.signals);
       }
-      const patterns = detector.detectPatterns(allSignals, userDomains);
+      const scannedSignals = quickScanAll(allSignals);
+      const validSignals = scannedSignals.filter((s) => s.quickScan?.tier !== "dead");
+      const deadSignals = scannedSignals.filter((s) => s.quickScan?.tier === "dead");
+      const patterns = detector.detectPatterns(validSignals, userDomains);
       const relevantPatterns = patterns.filter((p) => p.relevanceScore > 0.4);
       let output = `# Your Radar Digest
 
@@ -30753,13 +30986,34 @@ ${errors.map((e) => `- ${e}`).join("\n")}
           }
         }
       }
-      output += `## Other Trending
+      output += `## Top Signals
 
 `;
-      const otherSignals = allSignals.filter((s) => !relevantPatterns.some((p) => p.signals.includes(s))).slice(0, 5);
-      for (const s of otherSignals) {
-        output += `- [${s.source}] ${s.title}
+      for (const s of validSignals.slice(0, 10)) {
+        const badge = s.quickScan?.tier === "verified" ? "\u2713" : "\u26A0";
+        const meta3 = s.quickScan ? `${s.quickScan.engagement.points} pts, ${s.quickScan.engagement.comments} comments, ${s.quickScan.age.days}d ago` : "";
+        output += `- ${badge} [${s.source}] ${s.title}`;
+        if (meta3) output += ` (${meta3})`;
+        if (s.url) output += `
+  ${s.url}`;
+        output += "\n";
+      }
+      if (deadSignals.length > 0) {
+        output += `
+## Filtered Out (low engagement)
+
 `;
+        output += `*${deadSignals.length} signals skipped (< 5 pts and < 2 comments)*
+`;
+        for (const s of deadSignals.slice(0, 3)) {
+          const meta3 = s.quickScan ? `${s.quickScan.engagement.points} pts, ${s.quickScan.engagement.comments} comments` : "";
+          output += `- ${s.title} (${meta3})
+`;
+        }
+        if (deadSignals.length > 3) {
+          output += `- ...and ${deadSignals.length - 3} more
+`;
+        }
       }
       return {
         content: [
@@ -31028,6 +31282,102 @@ Link: ${s.url}
 `;
           }
         }
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: output
+          }
+        ]
+      };
+    }
+  );
+  server.tool(
+    "validate_signal",
+    "Run deep validation on a signal before adding to a report. Checks site health, recency, and product signals.",
+    {
+      url: external_exports3.string().describe("URL to validate"),
+      title: external_exports3.string().optional().describe("Signal title for context")
+    },
+    async (args) => {
+      const signal = {
+        id: `manual-${Date.now()}`,
+        source: "hackernews",
+        title: args.title || args.url,
+        url: args.url,
+        score: 0,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        metadata: {}
+      };
+      signal.quickScan = quickScan(signal);
+      const validation = await deepValidate(signal);
+      let output = `# Validation Result: ${args.title || args.url}
+
+`;
+      const verdictEmoji = {
+        verified: "\u2705",
+        caution: "\u26A0\uFE0F",
+        dead: "\u{1F6AB}"
+      }[validation.overallVerdict];
+      output += `## Verdict: ${verdictEmoji} ${validation.overallVerdict.toUpperCase()}
+
+`;
+      output += `### Site Health
+`;
+      output += `- Status: ${validation.siteHealth.status ?? "unreachable"}
+`;
+      output += `- Live: ${validation.siteHealth.isLive ? "Yes" : "No"}
+`;
+      output += `- Checked: ${validation.siteHealth.checkedAt}
+
+`;
+      output += `### Recency
+`;
+      output += `- Days since post: ${validation.recency.daysSincePost}
+`;
+      output += `- Stale (>90d): ${validation.recency.isStale ? "Yes" : "No"}
+
+`;
+      output += `### Product Signals
+`;
+      output += `- Method: ${validation.productSignals.method}
+`;
+      output += `- Is Product: ${validation.productSignals.isProduct ?? "inconclusive"}
+`;
+      output += `- Confidence: ${validation.productSignals.confidence}
+`;
+      if (validation.productSignals.signals.length > 0) {
+        output += `
+**Positive Signals:**
+`;
+        for (const s of validation.productSignals.signals) {
+          output += `- \u2713 ${s}
+`;
+        }
+      }
+      if (validation.productSignals.redFlags.length > 0) {
+        output += `
+**Red Flags:**
+`;
+        for (const flag of validation.productSignals.redFlags) {
+          output += `- \u26A0 ${flag}
+`;
+        }
+      }
+      output += `
+---
+
+`;
+      if (validation.overallVerdict === "verified") {
+        output += `**Recommendation:** Safe to include in reports.
+`;
+      } else if (validation.overallVerdict === "caution") {
+        output += `**Recommendation:** Review manually before including. Check for recent activity.
+`;
+      } else {
+        output += `**Recommendation:** Do not include. Site is down or project appears dead.
+`;
       }
       return {
         content: [

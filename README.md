@@ -123,14 +123,14 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Mermaid diagrams** (mindmap, flowchart, sequence, ERD, etc.)
 - **Version history** tracks diagram evolution
 
-### pattern-radar v0.2.0
-- **Subagent-driven digest** with Haiku generating personalized narratives
-- **Serendipity mode** surfaces unexpected discoveries (wildcards) by default
-- **6 MCP tools** for trend scanning and pattern detection
-- **HN + GitHub** real-time scanning
-- **Profile-aware relevance** scores trends to your domains
-- **Actionable suggestions** (learn, build, explore)
-- **Bundled dependencies** for instant marketplace install
+### pattern-radar v0.3.0
+- **Two-pass signal validation** - Quick scan filters low-engagement noise during digest, deep validation checks site health on-demand
+- **Quality badges** - Signals show verified/unverified status with engagement stats
+- **validate_signal tool** - Run deep validation before adding signals to competitive reports
+- **Dead project filtering** - Automatically excludes signals with <5 points and <2 comments
+- **Product signal heuristics** - Detects pricing pages, signup flows, app store links, and red flags
+- **7 MCP tools** for trend scanning, pattern detection, and signal validation
+- **HN + GitHub** real-time scanning with profile-aware relevance
 
 ## Requirements
 
