@@ -1,5 +1,39 @@
 # Brain-Jar Development Guidelines
 
+## Core Design Principles
+
+### 1. Automagic UX ("Don't Make Me Think")
+- Plugins work immediately after install with zero manual config
+- Prompt for config only when needed, allow skipping with graceful degradation
+- Prefer sensible defaults over configuration options
+- Skills orchestrate complexity away from the user
+
+### 2. Token Optimization
+- Never pollute main context with data that could be summarized
+- Use subagents (Haiku) for fetch/filter/format operations
+- Reserve Opus for decisions, orchestration, and user interaction
+- Return concise summaries to main context, store full data in persistent state
+- Fresh subagent per task prevents context cross-contamination
+
+### 3. Context Isolation Pattern
+- MCP tools stay simple (raw data access)
+- Skills handle orchestration and dispatch subagents
+- Multi-step workflows use subagent-per-phase pattern
+- Main context receives progress updates and summaries, not raw data dumps
+
+### 4. Security & Self-Ownership
+- All sensitive data stays under user's control (local files, user-owned cloud accounts)
+- Never phone home to brain-jar infrastructure
+- Use latest package versions unless blocked by dependencies
+- API keys are user's own—brain-jar never sees their data
+
+### 5. Serendipity by Default
+- Don't over-filter or over-summarize
+- Surface unexpected connections and tangential insights
+- Focused/minimal modes are opt-in, not default
+
+---
+
 ## Plugin Structure (CRITICAL)
 
 **Claude Code expects `plugin.json` inside a `.claude-plugin/` subdirectory, NOT at the root level!**
