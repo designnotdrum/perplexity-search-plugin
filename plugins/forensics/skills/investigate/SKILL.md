@@ -3,162 +3,230 @@ name: forensics:investigate
 description: Guided workflow for reverse engineering black-box systems. Use when a user wants to decode a defunct API, replicate a competitor's feature, understand unfamiliar code, or crack a data format.
 ---
 
-# Forensics Investigation
+# Forensics Investigation (Subagent-Driven)
 
-You are guiding a reverse engineering investigation. Follow this workflow.
+This skill orchestrates multi-phase investigations using fresh subagents per phase. Main context stays clean; subagents do heavy lifting.
+
+## Architecture
+
+```
+You (Opus) → Dispatch Haiku subagent → Subagent uses tools → Returns summary
+           ← 2-3 sentence summary   ← Full data in Mem0
+```
 
 ## Available Tools
 
-Use these forensics MCP tools throughout the investigation:
-- `explain_concept` - Explain technical concepts (adapts to user's skill level)
-- `analyze_capture` - Parse HAR/curl captures, extract endpoints and auth patterns
-- `suggest_next_step` - Get context-aware guidance for next steps
-- `build_spec` - Generate API spec from findings (json/openapi/typescript)
+Use these forensics MCP tools (directly for guidance, via subagent for data-heavy ops):
+- `explain_concept` - Explain technical concepts (direct - already concise)
+- `analyze_capture` - Parse HAR/curl captures (via subagent - returns lots of data)
+- `suggest_next_step` - Get context-aware guidance (direct - already concise)
+- `build_spec` - Generate API spec (via subagent - returns full spec)
+- `start_investigation` - Create new investigation
+- `get_investigation` - Get current/specific investigation
+- `list_investigations` - List all investigations
 
 ## Phase 1: Check for Existing Investigation
 
-First, check if there's an active investigation to resume:
+First, check if there's a resumable investigation:
 
-1. Call `suggest_next_step` with the suspected mode to see if there's state
-2. If the response mentions an active investigation, offer to resume
-3. Otherwise, proceed with intake
+```
+Call get_investigation tool (no params = gets active investigation)
+```
 
-Example: "I see you have an active investigation 'Spotify API'. Would you like to continue that, or start a new one?"
+**If investigation exists:** Ask user "Found investigation '[name]' in progress. Resume or start new?"
 
-## Phase 2: Intake (New Investigation)
+**If no investigation:** Proceed to Phase 2.
 
-Ask: "What are we investigating today?"
+## Phase 2: Start New Investigation
 
-Based on the answer, determine the mode:
-- **Protocol** - API, network traffic, IoT device communication
-- **Feature** - "I want it to work like X's Y"
-- **Codebase** - Understanding unfamiliar code
-- **Decision** - Why was something built a certain way
-- **Format** - Binary blob, unknown file type
+Ask ONE question: "What are we investigating today?"
 
-Confirm the mode: "This sounds like a [mode] investigation. Is that right?"
+From their answer, determine the mode:
+- **protocol**: API, network traffic, REST endpoints, authentication
+- **feature**: Competitor feature, UI behavior, product capability
+- **codebase**: Legacy code, unfamiliar repo, architecture
+- **decision**: Why was this built this way? Git archaeology
+- **format**: Binary format, data structure, file format
 
-## Phase 3: Skill Level
+Confirm: "This sounds like a [mode] investigation. Starting '[name]'..."
 
-The forensics tools automatically adapt to the user's skill level from their profile:
-- **Beginner** - Detailed explanations, commands, and tips
-- **Intermediate** - Moderate detail
-- **Advanced** - Terse responses, just the essentials
+```
+Call start_investigation with:
+- name: descriptive name from user's answer
+- mode: detected mode
+- target: what they're investigating
+```
 
-If `suggest_next_step` returns detailed commands and tips, the user is treated as a beginner.
-If responses are terse, they're advanced.
+## Phase 3: Mode-Specific Workflow
 
-You can still explicitly override with the `skillLevel` parameter if needed.
-
-## Phase 4: Mode-Specific Workflow
+**Subagent usage varies by mode:**
+- **Protocol/Feature**: Use subagents for data-heavy operations
+- **Codebase/Decision/Format**: Direct tool calls only (guidance-focused)
 
 ### Protocol Mode
 
-1. **Capture guidance** (if no capture yet)
-   - Call `suggest_next_step` with `mode=protocol`, `hasCapture=false`
-   - Walk through proxy setup using `explain_concept` for tools like "mitmproxy"
-   - Guide user to export HAR or capture traffic
+**Step 1: Capture Guidance (DIRECT)**
 
-2. **Analysis** (when user provides capture)
-   - Use `analyze_capture` with the HAR/curl content
-   - Findings are automatically stored to the active investigation
-   - Explain endpoints and auth patterns at their level
+If user hasn't captured traffic yet:
+```
+Call suggest_next_step with mode='protocol', hasCapture=false
+```
+Return the guidance directly (it's already concise).
 
-3. **Specification** (after analysis)
-   - Offer to generate spec with `build_spec`
-   - Choose format based on user's needs (openapi for docs, typescript for code)
-   - Spec is saved for future reference
+Use `explain_concept` for tools like "mitmproxy" or "HAR file" if user asks.
 
-4. **Implementation**
-   - Read user's tech stack from response's `userStack` field
-   - Suggest implementation approach in their preferred language
-   - Help scaffold replacement server if needed
+**Step 2: Analyze Capture (SUBAGENT)**
+
+When user provides HAR/curl output, dispatch a Haiku subagent:
+
+```
+Use Task tool:
+- subagent_type: "general-purpose"
+- model: "haiku"
+- prompt: "You are a forensics investigation assistant. Analyze this network capture using the analyze_capture tool. Return ONLY a 2-3 sentence summary of findings. Full data is stored automatically.
+
+Investigation context: [name]
+
+Capture data:
+[user's HAR/curl content]"
+```
+
+**Tell the user:** The subagent's summary + "Full details stored in investigation."
+
+**Step 3: Build Spec (SUBAGENT)**
+
+After analysis, dispatch another Haiku subagent:
+
+```
+Use Task tool:
+- subagent_type: "general-purpose"
+- model: "haiku"
+- prompt: "Generate an OpenAPI spec for the current forensics investigation using the build_spec tool with format='openapi'. Return a 2-3 sentence summary of what was generated."
+```
+
+**Tell the user:** The subagent's summary + offer to show spec or continue.
+
+**Step 4: Implementation Guidance (DIRECT)**
+
+```
+Call suggest_next_step with mode='protocol', hasCapture=true, hasSpec=true
+```
+
+This returns implementation suggestions tailored to user's tech stack (fetched from profile automatically).
 
 ### Feature Mode
 
-1. **Research**
-   - Call `suggest_next_step` with `mode=feature`, `hasResearch=false`
-   - Use perplexity-search for competitive analysis
-   - Break down feature into components
+**Step 1: Research Phase (SUBAGENT)**
 
-2. **Mapping**
-   - Check `userStack` from suggest_next_step response
-   - Map feature components to their tech stack
-   - Propose implementation approach
+Dispatch Haiku subagent to research the feature:
 
-### Codebase Mode
+```
+Use Task tool:
+- subagent_type: "general-purpose"
+- model: "haiku"
+- prompt: "Research the feature '[feature name]'. Use perplexity-search if available to find:
+  - How competitors implement similar features
+  - Common patterns and libraries used
+  - Key technical components
 
-1. **Entry point identification**
-   - Use `suggest_next_step` with `mode=codebase`
-   - Help find main entry points
-   - Trace execution flow
+Return a 2-3 sentence summary of findings. Full research data is stored automatically.
 
-2. **Documentation**
-   - Build understanding incrementally
-   - Store significant discoveries as memories
+Feature context: [name]
 
-### Decision Mode
+Description: [user's description of feature]"
+```
 
-1. **History analysis**
-   - Use `suggest_next_step` with `mode=decision`
-   - Guide through git blame, commit history
-   - Search for related discussions
+**Tell the user:** The subagent's summary of competitive landscape + "Research stored in investigation."
 
-2. **Hypothesis formation**
-   - Propose likely rationale
-   - Use perplexity-search for historical context if needed
+**Step 2: Component Mapping (DIRECT)**
 
-### Format Mode
+```
+Call suggest_next_step with mode='feature', hasResearch=true
+```
 
-1. **Initial analysis**
-   - Use `suggest_next_step` with `mode=format`
-   - Examine magic numbers with xxd/hexdump
-   - Use `explain_concept` for format-specific terms
+Guide user to map feature components to their codebase and tech stack.
 
-2. **Structure inference**
-   - Look for patterns in hex dump
-   - Propose schema based on observations
+**Step 3: Implementation Guidance (DIRECT)**
 
-## Phase 5: Documentation
+Continue using `suggest_next_step` to provide step-by-step implementation guidance tailored to their tech stack.
 
-After each significant discovery:
-- Findings are automatically stored to the investigation
-- Offer to export spec or summary as markdown
-- Remind user they can resume later
+### Codebase / Decision / Format Modes
+
+For these modes, use suggest_next_step directly (responses are already concise).
+No subagent needed - these are guidance-heavy, not data-heavy.
+
+## Phase 4: Progress & Resume
+
+Investigation state is persisted. When user returns:
+
+1. `get_investigation` retrieves full state
+2. `suggest_next_step` knows where they left off
+3. Continue from current phase
+
+## Error Handling
+
+If a subagent dispatch fails or returns an error:
+
+1. **Don't panic** - Tell user "Analysis encountered an issue, let me try again"
+2. **Retry once** - Dispatch a fresh subagent with the same task
+3. **Fall back to direct** - If retry fails, call the tool directly and summarize manually
+4. **Report partial progress** - "I was able to find X but couldn't complete Y"
+
+If investigation state is corrupted:
+
+1. Offer to start fresh: "Your investigation state seems corrupted. Start a new one?"
+2. Use `start_investigation` to create a clean state
+
+## Key Principles
+
+1. **Subagents for data-heavy operations** - HAR parsing, spec generation
+2. **Direct tools for guidance** - suggest_next_step already returns concise output
+3. **Main context gets summaries** - "Found 12 endpoints with OAuth2 auth"
+4. **Full data in Mem0** - Investigation state has everything
+5. **Fresh subagent per phase** - No context pollution between phases
 
 ## Key Behaviors
 
 - **One question at a time** - Don't overwhelm
 - **Adapt to skill level** - Let the tools handle verbosity
-- **Explain the why** - Don't just give commands, explain purpose
-- **Track progress** - Use todo list for multi-step tasks
-- **Offer to pause** - "We can stop here and resume later. Your progress is saved."
-
-## Resuming Investigations
-
-When user says "continue investigation" or "pick up where we left off":
-
-1. The investigation state is persisted in memory
-2. Call `suggest_next_step` with the last known mode
-3. It will automatically use the investigation's session state
-4. Summarize: "Last time we captured traffic and found 3 endpoints. Ready to build the spec?"
+- **Announce subagent dispatch** - "Analyzing your capture..." before dispatching
+- **Summarize subagent results** - Don't dump raw output
+- **Offer to pause** - "Your progress is saved. We can continue later."
 
 ## Example Flow
 
 ```
-User: I want to figure out how this IoT device talks to its cloud
+User: I want to reverse engineer the Spotify API
 
-Claude: This sounds like a protocol investigation - we'll capture and analyze
-the network traffic. Is that right?
+You: This sounds like a protocol investigation - we'll capture and analyze
+network traffic to document the API. Starting 'Spotify API' investigation...
+[Call start_investigation]
 
-User: Yes
-
-Claude: [Calls suggest_next_step mode=protocol hasCapture=false]
-Let's start by capturing the traffic. Here's how to set up mitmproxy...
+First, we need to capture some traffic.
+[Call suggest_next_step mode=protocol hasCapture=false]
+Here's how to set up mitmproxy and capture requests...
 
 User: [Provides HAR file]
 
-Claude: [Calls analyze_capture with content]
-Great capture! I found 4 endpoints with JWT authentication...
-These findings are saved to your investigation. Ready to build an API spec?
+You: Analyzing your capture...
+[Dispatch Haiku subagent with analyze_capture]
+Found 47 endpoints using Bearer token auth. Key APIs: /v1/me, /v1/playlists,
+/v1/tracks. Full details stored in investigation.
+
+Ready to generate an API spec?
+
+User: Yes
+
+You: Building OpenAPI specification...
+[Dispatch Haiku subagent with build_spec]
+Generated OpenAPI 3.0 spec with 47 endpoints. Includes OAuth2 security scheme.
+Saved to investigation.
+
+Would you like to see the spec, or discuss implementation?
+
+User: How do I implement this?
+
+You: [Call suggest_next_step mode=protocol hasCapture=true hasSpec=true]
+Based on your profile (Python, FastAPI), I'd suggest using httpx for the client
+and Pydantic models generated from the OpenAPI spec...
 ```
