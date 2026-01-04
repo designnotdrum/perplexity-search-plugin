@@ -9,7 +9,8 @@ import { GitHubSource } from './sources/github';
 import { PerplexitySource } from './sources/perplexity';
 import { PatternDetector } from './detector';
 import { ConfigManager } from './config';
-import { Signal, Pattern, DigestResult } from './types';
+import { DigestStorage } from './storage';
+import { Signal, Pattern, DigestResult, DigestStatus } from './types';
 import { quickScan, quickScanAll, deepValidate } from './validation';
 import { loadCustomAdapters } from './adapters/loader.js';
 
@@ -31,6 +32,13 @@ async function main(): Promise<void> {
   const ghSource = new GitHubSource(githubToken);
   const perplexitySource = new PerplexitySource();
   const detector = new PatternDetector();
+  const digestStorage = new DigestStorage();
+
+  // Prune expired digests on startup
+  const pruned = digestStorage.pruneStaleDigests();
+  if (pruned > 0) {
+    console.error(`[pattern-radar] Pruned ${pruned} stale digests`);
+  }
 
   // Load user profile for domain inference
   const profile = configManager.loadUserProfile();
@@ -48,7 +56,7 @@ async function main(): Promise<void> {
   // Create MCP server
   const server = new McpServer({
     name: 'pattern-radar',
-    version: '0.4.1',
+    version: '0.5.0',
   });
 
   // --- Pattern Radar Tools ---
@@ -107,6 +115,10 @@ async function main(): Promise<void> {
         domains: userDomains,
         generatedAt: new Date().toISOString(),
       };
+
+      // Persist the digest
+      const savedDigest = digestStorage.create(validSignals, patterns, userDomains);
+      console.error(`[pattern-radar] Saved digest ${savedDigest.id} (${validSignals.length} signals, ${patterns.length} patterns)`);
 
       let output = `# Trend Scan: ${args.topic}\n\n`;
       output += `Found ${validSignals.length} valid signals (${deadCount} filtered), ${patterns.length} patterns\n`;
@@ -194,8 +206,13 @@ async function main(): Promise<void> {
       // Filter to relevant patterns
       const relevantPatterns = patterns.filter((p) => p.relevanceScore > 0.4);
 
+      // Persist the digest
+      const savedDigest = digestStorage.create(validSignals, patterns, userDomains);
+      console.error(`[pattern-radar] Saved digest ${savedDigest.id} (${validSignals.length} signals, ${patterns.length} patterns)`);
+
       let output = `# Your Radar Digest\n\n`;
-      output += `*Generated: ${new Date().toISOString()}*\n`;
+      output += `*Digest ID: ${savedDigest.id}*\n`;
+      output += `*Generated: ${savedDigest.generatedAt}*\n`;
       output += `*Timeframe: ${timeframe}*\n`;
       output += `*Your domains: ${userDomains.join(', ') || 'none set (configure via shared-memory)'}*\n\n`;
 
@@ -778,6 +795,198 @@ async function main(): Promise<void> {
 
       return {
         content: [{ type: 'text' as const, text: output }],
+      };
+    }
+  );
+
+  // --- Digest Management Tools ---
+
+  server.tool(
+    'list_digests',
+    'List saved radar digests with optional status filter',
+    {
+      status: z
+        .enum(['fresh', 'actioned', 'stale'])
+        .optional()
+        .describe('Filter by status'),
+      limit: z.number().optional().describe('Max digests to return (default: 10)'),
+    },
+    async (args: { status?: DigestStatus; limit?: number }) => {
+      const digests = digestStorage.list(args.status, args.limit || 10);
+
+      if (digests.length === 0) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `No digests found${args.status ? ` with status '${args.status}'` : ''}.`,
+            },
+          ],
+        };
+      }
+
+      let output = `# Saved Digests (${digests.length})\n\n`;
+
+      for (const d of digests) {
+        const statusEmoji = { fresh: '🆕', actioned: '✓', stale: '⏰' }[d.status];
+        output += `## ${statusEmoji} ${d.id.slice(0, 8)}...\n`;
+        output += `- **Status:** ${d.status}\n`;
+        output += `- **Generated:** ${d.generatedAt}\n`;
+        output += `- **Signals:** ${d.signalCount} | **Patterns:** ${d.patternCount}\n`;
+        output += `- **Domains:** ${d.domains.join(', ') || 'none'}\n`;
+        if (d.topPatternTitles.length > 0) {
+          output += `- **Top Patterns:** ${d.topPatternTitles.slice(0, 2).join(', ')}\n`;
+        }
+        if (d.lastActionedAt) {
+          output += `- **Last Actioned:** ${d.lastActionedAt}\n`;
+        }
+        output += `- **Expires:** ${d.expiresAt}\n\n`;
+      }
+
+      const stats = digestStorage.getStats();
+      output += `---\n`;
+      output += `*Total: ${stats.total} | Fresh: ${stats.fresh} | Actioned: ${stats.actioned} | Stale: ${stats.stale}*\n`;
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: output,
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'get_digest',
+    'Get full details of a specific digest including all signals and patterns',
+    {
+      digest_id: z.string().describe('Digest ID (full or partial)'),
+    },
+    async (args: { digest_id: string }) => {
+      // Try to find digest by ID or partial match
+      const digests = digestStorage.list(undefined, 100);
+      const match = digests.find(
+        (d) => d.id === args.digest_id || d.id.startsWith(args.digest_id)
+      );
+
+      if (!match) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Digest '${args.digest_id}' not found. Use list_digests to see available digests.`,
+            },
+          ],
+        };
+      }
+
+      const data = digestStorage.getData(match.id);
+      if (!data) {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `Digest data not found for ${match.id}.`,
+            },
+          ],
+        };
+      }
+
+      // Mark as actioned since user is viewing it
+      digestStorage.markActioned(match.id);
+
+      let output = `# Digest: ${match.id}\n\n`;
+      output += `- **Status:** ${match.status} → actioned\n`;
+      output += `- **Generated:** ${match.generatedAt}\n`;
+      output += `- **Domains:** ${match.domains.join(', ') || 'none'}\n\n`;
+
+      if (data.patterns.length > 0) {
+        output += `## Patterns (${data.patterns.length})\n\n`;
+        for (const p of data.patterns) {
+          output += `### ${p.title}\n`;
+          output += `*Relevance: ${(p.relevanceScore * 100).toFixed(0)}%*\n\n`;
+          output += `${p.description}\n\n`;
+          if (p.actionable.length > 0) {
+            output += `**Actions:**\n`;
+            for (const a of p.actionable) {
+              output += `- [${a.type}] ${a.suggestion}\n`;
+            }
+            output += '\n';
+          }
+        }
+      }
+
+      output += `## Signals (${data.signals.length})\n\n`;
+      for (const s of data.signals.slice(0, 20)) {
+        const badge = s.quickScan?.tier === 'verified' ? '✓' : s.quickScan?.tier === 'dead' ? '✗' : '⚠';
+        output += `- ${badge} [${s.source}] ${s.title}`;
+        if (s.url) output += ` - ${s.url}`;
+        output += '\n';
+      }
+      if (data.signals.length > 20) {
+        output += `\n*...and ${data.signals.length - 20} more signals*\n`;
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: output,
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'get_digest_stats',
+    'Get statistics about saved digests',
+    {},
+    async () => {
+      const stats = digestStorage.getStats();
+
+      let output = `# Digest Statistics\n\n`;
+      output += `- **Total Digests:** ${stats.total}\n`;
+      output += `- **Fresh:** ${stats.fresh}\n`;
+      output += `- **Actioned:** ${stats.actioned}\n`;
+      output += `- **Stale:** ${stats.stale}\n\n`;
+
+      if (stats.oldestDigest) {
+        output += `- **Oldest:** ${stats.oldestDigest}\n`;
+      }
+      if (stats.newestDigest) {
+        output += `- **Newest:** ${stats.newestDigest}\n`;
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: output,
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'prune_digests',
+    'Delete stale digests (unactioned and past expiration)',
+    {},
+    async () => {
+      const pruned = digestStorage.pruneStaleDigests();
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: pruned > 0
+              ? `Pruned ${pruned} stale digest(s).`
+              : 'No stale digests to prune.',
+          },
+        ],
       };
     }
   );

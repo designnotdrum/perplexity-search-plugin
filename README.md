@@ -124,15 +124,15 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Mermaid diagrams** (mindmap, flowchart, sequence, ERD, etc.)
 - **Version history** tracks diagram evolution
 
-### pattern-radar v0.4.1
+### pattern-radar v0.5.0
+- **Digest persistence** - Digests auto-save to SQLite with 30-day retention and auto-prune
+- **Digest lifecycle** - Fresh → Actioned → Stale with tracking via explore/validate actions
 - **Dynamic source architecture** - Pluggable adapter system for adding new source types
 - **Reddit adapter** - Scan subreddits for trends and discussions
 - **RSS adapter** - Monitor any RSS/Atom feed for signals
 - **scan_topic tool** - Topic-based scanning with curated domain mappings
-- **Topic mapper** - 13 curated domains (sports, finance, tech, gaming, etc.) with automatic source selection
-- **Custom adapter support** - `/create-adapter` skill to add your own sources
-- **8 MCP tools** for trend scanning, pattern detection, and signal validation
-- **Graceful fallback** - Falls back to HN/GitHub when curated sources lack specific configs
+- **12 MCP tools** for trend scanning, pattern detection, signal validation, and digest management
+- **HN + GitHub** real-time scanning with profile-aware relevance
 
 ## Requirements
 

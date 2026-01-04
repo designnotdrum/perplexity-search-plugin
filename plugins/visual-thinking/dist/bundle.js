@@ -46184,7 +46184,7 @@ var HOOKIFY_RULE_CONTENT = `---
 name: visual-thinking-brainstorm
 enabled: true
 event: prompt
-pattern: \\b(architecture|workflow|wireflow|data\\s*flow|user\\s*journey|customer\\s*journey|state\\s*machine|states?\\s*and\\s*transitions|data\\s*model|ERD|schema|relationships|wireframe|mockup|UI\\s*design|screens?|diagram|visualize|draw\\s*(this|it|out)?|flow\\s*chart|sequence\\s*diagram|mind\\s*map)\\b
+pattern: \\b(brainstorm|design\\s*(this|it|the)|let'?s\\s*(design|plan|think\\s*about)|architecture|system\\s*design|component\\s*design|workflow|wireflow|data\\s*flow|user\\s*journey|customer\\s*journey|state\\s*machine|states?\\s*and\\s*transitions|data\\s*model|ERD|schema|relationships|wireframe|mockup|UI\\s*design|screens?|diagram|visualize|draw\\s*(this|it|out)?|flow\\s*chart|sequence\\s*diagram|mind\\s*map|how\\s*(should|would|does)\\s*this\\s*work|map\\s*(this|it)\\s*out)\\b
 ---
 
 **Visual Thinking Available**
@@ -46217,18 +46217,19 @@ async function main() {
   }
   const server = new McpServer({
     name: "visual-thinking",
-    version: "0.3.1"
+    version: "0.3.2"
   });
   server.tool(
     "create_diagram",
-    "Create a new Mermaid diagram with title, type, and context",
+    "Create a new Mermaid diagram with title, type, and context. By default opens in draw.io for editing.",
     {
       title: external_exports3.string().describe("Title for the diagram"),
       type: external_exports3.enum(DIAGRAM_TYPES).describe("Type of diagram"),
       mermaid: external_exports3.string().describe("Mermaid diagram syntax"),
       context: external_exports3.string().describe("What this diagram represents and why it was created"),
       scope: external_exports3.string().optional().describe('Scope: "global" or "project:<name>"'),
-      tags: external_exports3.array(external_exports3.string()).optional().describe("Tags for categorization")
+      tags: external_exports3.array(external_exports3.string()).optional().describe("Tags for categorization"),
+      auto_open: external_exports3.boolean().optional().default(true).describe("Automatically open in draw.io (default: true)")
     },
     async (args) => {
       const diagram = storage.create(args);
@@ -46247,6 +46248,20 @@ async function main() {
           console.error("[visual-thinking] Mem0 sync failed:", error48);
         }
       }
+      const shouldOpen = args.auto_open !== false;
+      let openMessage = "";
+      if (shouldOpen) {
+        const createObj = JSON.stringify({ type: "mermaid", data: diagram.mermaid });
+        const url2 = `https://app.diagrams.net/?create=${encodeURIComponent(createObj)}`;
+        const platform = process.platform;
+        const openCmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open";
+        (0, import_child_process.exec)(`${openCmd} "${url2}"`, (error48) => {
+          if (error48) {
+            console.error("[visual-thinking] Failed to open browser:", error48.message);
+          }
+        });
+        openMessage = "\n\n**Opening in draw.io...** The diagram will appear in your browser as editable shapes.";
+      }
       const syncNote = mem0Client ? "" : " (local only)";
       return {
         content: [
@@ -46259,7 +46274,7 @@ Type: ${diagram.type}
 
 \`\`\`mermaid
 ${diagram.mermaid}
-\`\`\``
+\`\`\`${openMessage}`
           }
         ]
       };
@@ -46500,10 +46515,10 @@ ${JSON.stringify(formatted, null, 2)}`
   );
   server.tool(
     "export_diagram",
-    "Export a diagram to various formats",
+    "Export a diagram to various formats. Default: opens in draw.io for editing.",
     {
       id: external_exports3.string().describe("Diagram ID"),
-      format: external_exports3.enum(["mermaid", "svg", "drawio"]).describe("Export format")
+      format: external_exports3.enum(["mermaid", "drawio"]).optional().default("drawio").describe("Export format (default: drawio)")
     },
     async (args) => {
       const diagram = storage.get(args.id);
@@ -46517,7 +46532,8 @@ ${JSON.stringify(formatted, null, 2)}`
           ]
         };
       }
-      if (args.format === "mermaid") {
+      const format = args.format || "drawio";
+      if (format === "mermaid") {
         const exported = storage.exportAsMermaid(args.id);
         return {
           content: [
@@ -46534,52 +46550,22 @@ Save this content to a .mmd file.`
           ]
         };
       }
-      if (args.format === "svg") {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `SVG export requires the Mermaid CLI. Install with:
-
-npm install -g @mermaid-js/mermaid-cli
-
-Then run:
-mmdc -i input.mmd -o ${diagram.title.replace(/\s+/g, "-").toLowerCase()}.svg
-
-Mermaid content:
-\`\`\`mermaid
-${diagram.mermaid}
-\`\`\``
-            }
-          ]
-        };
-      }
-      if (args.format === "drawio") {
-        const createObj = JSON.stringify({ type: "mermaid", data: diagram.mermaid });
-        const url2 = `https://app.diagrams.net/?create=${encodeURIComponent(createObj)}`;
-        const platform = process.platform;
-        const openCmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open";
-        (0, import_child_process.exec)(`${openCmd} "${url2}"`, (error48) => {
-          if (error48) {
-            console.error("[visual-thinking] Failed to open browser:", error48.message);
-          }
-        });
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Opening "${diagram.title}" in Draw.io...
-
-The diagram will open in your browser and be converted to editable shapes.`
-            }
-          ]
-        };
-      }
+      const createObj = JSON.stringify({ type: "mermaid", data: diagram.mermaid });
+      const url2 = `https://app.diagrams.net/?create=${encodeURIComponent(createObj)}`;
+      const platform = process.platform;
+      const openCmd = platform === "darwin" ? "open" : platform === "win32" ? "start" : "xdg-open";
+      (0, import_child_process.exec)(`${openCmd} "${url2}"`, (error48) => {
+        if (error48) {
+          console.error("[visual-thinking] Failed to open browser:", error48.message);
+        }
+      });
       return {
         content: [
           {
             type: "text",
-            text: `Unknown format: ${args.format}`
+            text: `Opening "${diagram.title}" in Draw.io...
+
+The diagram will open in your browser and be converted to editable shapes.`
           }
         ]
       };

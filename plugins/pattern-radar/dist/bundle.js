@@ -3226,8 +3226,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path2) {
-      let input = path2;
+    function removeDotSegments(path3) {
+      let input = path3;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3426,8 +3426,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path2, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path2 && path2 !== "/" ? path2 : void 0;
+        const [path3, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path3 && path3 !== "/" ? path3 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -6780,12 +6780,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs2, exportName) {
+    function addFormats(ajv, list, fs3, exportName) {
       var _a2;
       var _b;
       (_a2 = (_b = ajv.opts.code).formats) !== null && _a2 !== void 0 ? _a2 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs2[f]);
+        ajv.addFormat(f, fs3[f]);
     }
     module2.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -8141,8 +8141,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path2, errorMaps, issueData } = params;
-  const fullPath = [...path2, ...issueData.path || []];
+  const { data, path: path3, errorMaps, issueData } = params;
+  const fullPath = [...path3, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -8257,11 +8257,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path2, key) {
+  constructor(parent, value, path3, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path2;
+    this._path = path3;
     this._key = key;
   }
   get path() {
@@ -12184,10 +12184,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path2) {
-  if (!path2)
+function getElementAtPath(obj, path3) {
+  if (!path3)
     return obj;
-  return path2.reduce((acc, key) => acc?.[key], obj);
+  return path3.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -12570,11 +12570,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path2, issues) {
+function prefixIssues(path3, issues) {
   return issues.map((iss) => {
     var _a2;
     (_a2 = iss).path ?? (_a2.path = []);
-    iss.path.unshift(path2);
+    iss.path.unshift(path3);
     return iss;
   });
 }
@@ -12757,7 +12757,7 @@ function formatError(error48, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error48, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error49, path2 = []) => {
+  const processError = (error49, path3 = []) => {
     var _a2, _b;
     for (const issue2 of error49.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
@@ -12767,7 +12767,7 @@ function treeifyError(error48, mapper = (issue2) => issue2.message) {
       } else if (issue2.code === "invalid_element") {
         processError({ issues: issue2.issues }, issue2.path);
       } else {
-        const fullpath = [...path2, ...issue2.path];
+        const fullpath = [...path3, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -12799,8 +12799,8 @@ function treeifyError(error48, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path2 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path2) {
+  const path3 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path3) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -25206,13 +25206,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path2 = ref.slice(1).split("/").filter(Boolean);
-  if (path2.length === 0) {
+  const path3 = ref.slice(1).split("/").filter(Boolean);
+  if (path3.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path2[0] === defsKey) {
-    const key = path2[1];
+  if (path3[0] === defsKey) {
+    const key = path3[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -31313,6 +31313,315 @@ var ConfigManager = class {
   }
 };
 
+// plugins/pattern-radar/src/storage.ts
+var import_better_sqlite3 = __toESM(require("better-sqlite3"));
+var path2 = __toESM(require("path"));
+var os2 = __toESM(require("os"));
+var fs2 = __toESM(require("fs"));
+
+// node_modules/uuid/dist/esm-node/rng.js
+var import_crypto = __toESM(require("crypto"));
+var rnds8Pool = new Uint8Array(256);
+var poolPtr = rnds8Pool.length;
+function rng() {
+  if (poolPtr > rnds8Pool.length - 16) {
+    import_crypto.default.randomFillSync(rnds8Pool);
+    poolPtr = 0;
+  }
+  return rnds8Pool.slice(poolPtr, poolPtr += 16);
+}
+
+// node_modules/uuid/dist/esm-node/stringify.js
+var byteToHex = [];
+for (let i = 0; i < 256; ++i) {
+  byteToHex.push((i + 256).toString(16).slice(1));
+}
+function unsafeStringify(arr, offset = 0) {
+  return byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + "-" + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + "-" + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + "-" + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + "-" + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]];
+}
+
+// node_modules/uuid/dist/esm-node/native.js
+var import_crypto2 = __toESM(require("crypto"));
+var native_default = {
+  randomUUID: import_crypto2.default.randomUUID
+};
+
+// node_modules/uuid/dist/esm-node/v4.js
+function v4(options, buf, offset) {
+  if (native_default.randomUUID && !buf && !options) {
+    return native_default.randomUUID();
+  }
+  options = options || {};
+  const rnds = options.random || (options.rng || rng)();
+  rnds[6] = rnds[6] & 15 | 64;
+  rnds[8] = rnds[8] & 63 | 128;
+  if (buf) {
+    offset = offset || 0;
+    for (let i = 0; i < 16; ++i) {
+      buf[offset + i] = rnds[i];
+    }
+    return buf;
+  }
+  return unsafeStringify(rnds);
+}
+var v4_default = v4;
+
+// plugins/pattern-radar/src/storage.ts
+var RADAR_DIR = path2.join(os2.homedir(), ".config", "brain-jar", "radar");
+var DB_PATH = path2.join(RADAR_DIR, "digests.db");
+var DIGEST_TTL_MS = 30 * 24 * 60 * 60 * 1e3;
+var DigestStorage = class {
+  db;
+  constructor(dbPath = DB_PATH) {
+    const dir = path2.dirname(dbPath);
+    if (!fs2.existsSync(dir)) {
+      fs2.mkdirSync(dir, { recursive: true });
+    }
+    this.db = new import_better_sqlite3.default(dbPath);
+    this.initSchema();
+  }
+  initSchema() {
+    this.db.exec(`
+      -- Main digest metadata (lightweight for listing)
+      CREATE TABLE IF NOT EXISTS digests (
+        id TEXT PRIMARY KEY,
+        scope TEXT NOT NULL DEFAULT 'global',
+        generated_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'fresh',
+        last_actioned_at TEXT,
+        expires_at TEXT NOT NULL,
+        domains_json TEXT NOT NULL DEFAULT '[]',
+        signal_count INTEGER NOT NULL DEFAULT 0,
+        pattern_count INTEGER NOT NULL DEFAULT 0,
+        top_pattern_titles_json TEXT NOT NULL DEFAULT '[]',
+        top_signal_titles_json TEXT NOT NULL DEFAULT '[]'
+      );
+
+      -- Full digest data (stored separately for efficiency)
+      CREATE TABLE IF NOT EXISTS digest_data (
+        digest_id TEXT PRIMARY KEY,
+        signals_json TEXT NOT NULL DEFAULT '[]',
+        patterns_json TEXT NOT NULL DEFAULT '[]',
+        FOREIGN KEY (digest_id) REFERENCES digests(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_digests_status ON digests(status);
+      CREATE INDEX IF NOT EXISTS idx_digests_expires ON digests(expires_at);
+      CREATE INDEX IF NOT EXISTS idx_digests_generated ON digests(generated_at);
+    `);
+  }
+  rowToDigest(row) {
+    return {
+      id: row.id,
+      scope: "global",
+      generatedAt: row.generated_at,
+      status: row.status,
+      lastActionedAt: row.last_actioned_at || void 0,
+      expiresAt: row.expires_at,
+      domains: JSON.parse(row.domains_json),
+      signalCount: row.signal_count,
+      patternCount: row.pattern_count,
+      topPatternTitles: JSON.parse(row.top_pattern_titles_json),
+      topSignalTitles: JSON.parse(row.top_signal_titles_json)
+    };
+  }
+  /**
+   * Create a new digest from signals and patterns
+   */
+  create(signals, patterns, domains) {
+    const id = v4_default();
+    const now = /* @__PURE__ */ new Date();
+    const generatedAt = now.toISOString();
+    const expiresAt = new Date(now.getTime() + DIGEST_TTL_MS).toISOString();
+    const signalsWithId = signals.map((s) => ({ ...s, digestId: id }));
+    const patternsWithId = patterns.map((p) => ({
+      ...p,
+      digestId: id,
+      signals: p.signals.map((s) => ({ ...s, digestId: id }))
+    }));
+    const topSignalTitles = signalsWithId.slice(0, 5).map((s) => s.title);
+    const topPatternTitles = patternsWithId.slice(0, 3).map((p) => p.title);
+    const digest = {
+      id,
+      scope: "global",
+      generatedAt,
+      status: "fresh",
+      expiresAt,
+      domains,
+      signalCount: signalsWithId.length,
+      patternCount: patternsWithId.length,
+      topPatternTitles,
+      topSignalTitles
+    };
+    const insertDigest = this.db.prepare(`
+      INSERT INTO digests (
+        id, scope, generated_at, status, expires_at, domains_json,
+        signal_count, pattern_count, top_pattern_titles_json, top_signal_titles_json
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    insertDigest.run(
+      id,
+      "global",
+      generatedAt,
+      "fresh",
+      expiresAt,
+      JSON.stringify(domains),
+      signalsWithId.length,
+      patternsWithId.length,
+      JSON.stringify(topPatternTitles),
+      JSON.stringify(topSignalTitles)
+    );
+    const insertData = this.db.prepare(`
+      INSERT INTO digest_data (digest_id, signals_json, patterns_json)
+      VALUES (?, ?, ?)
+    `);
+    insertData.run(
+      id,
+      JSON.stringify(signalsWithId),
+      JSON.stringify(patternsWithId)
+    );
+    return digest;
+  }
+  /**
+   * Get a digest by ID (metadata only)
+   */
+  get(id) {
+    const stmt = this.db.prepare("SELECT * FROM digests WHERE id = ?");
+    const row = stmt.get(id);
+    return row ? this.rowToDigest(row) : null;
+  }
+  /**
+   * Get full digest data (signals and patterns)
+   */
+  getData(digestId) {
+    const stmt = this.db.prepare("SELECT * FROM digest_data WHERE digest_id = ?");
+    const row = stmt.get(digestId);
+    if (!row) return null;
+    return {
+      digestId: row.digest_id,
+      signals: JSON.parse(row.signals_json),
+      patterns: JSON.parse(row.patterns_json)
+    };
+  }
+  /**
+   * Mark a digest as actioned (user explored/validated a signal)
+   */
+  markActioned(digestId) {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const stmt = this.db.prepare(`
+      UPDATE digests
+      SET status = 'actioned', last_actioned_at = ?
+      WHERE id = ? AND status != 'actioned'
+    `);
+    const result = stmt.run(now, digestId);
+    return result.changes > 0;
+  }
+  /**
+   * Mark a digest as actioned by signal ID
+   */
+  markActionedBySignal(signalId) {
+    const stmt = this.db.prepare(`
+      SELECT digest_id FROM digest_data
+      WHERE signals_json LIKE ?
+    `);
+    const row = stmt.get(`%"id":"${signalId}"%`);
+    if (!row) return false;
+    return this.markActioned(row.digest_id);
+  }
+  /**
+   * List digests with optional status filter
+   */
+  list(status, limit = 20) {
+    let sql = "SELECT * FROM digests";
+    const params = [];
+    if (status) {
+      sql += " WHERE status = ?";
+      params.push(status);
+    }
+    sql += " ORDER BY generated_at DESC LIMIT ?";
+    params.push(limit);
+    const stmt = this.db.prepare(sql);
+    const rows = stmt.all(...params);
+    return rows.map((row) => this.rowToDigest(row));
+  }
+  /**
+   * Get the most recent digest
+   */
+  getLatest() {
+    const stmt = this.db.prepare(`
+      SELECT * FROM digests ORDER BY generated_at DESC LIMIT 1
+    `);
+    const row = stmt.get();
+    return row ? this.rowToDigest(row) : null;
+  }
+  /**
+   * Mark stale digests (past expiration, not actioned)
+   */
+  markStaleDigests() {
+    const now = (/* @__PURE__ */ new Date()).toISOString();
+    const stmt = this.db.prepare(`
+      UPDATE digests
+      SET status = 'stale'
+      WHERE status = 'fresh' AND expires_at < ?
+    `);
+    const result = stmt.run(now);
+    return result.changes;
+  }
+  /**
+   * Prune stale digests (delete them and their data)
+   */
+  pruneStaleDigests() {
+    this.markStaleDigests();
+    const stmt = this.db.prepare(`
+      DELETE FROM digests WHERE status = 'stale'
+    `);
+    const result = stmt.run();
+    return result.changes;
+  }
+  /**
+   * Get storage statistics
+   */
+  getStats() {
+    const countStmt = this.db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'fresh' THEN 1 ELSE 0 END) as fresh,
+        SUM(CASE WHEN status = 'actioned' THEN 1 ELSE 0 END) as actioned,
+        SUM(CASE WHEN status = 'stale' THEN 1 ELSE 0 END) as stale
+      FROM digests
+    `);
+    const counts = countStmt.get();
+    const oldestStmt = this.db.prepare(
+      "SELECT generated_at FROM digests ORDER BY generated_at ASC LIMIT 1"
+    );
+    const oldest = oldestStmt.get();
+    const newestStmt = this.db.prepare(
+      "SELECT generated_at FROM digests ORDER BY generated_at DESC LIMIT 1"
+    );
+    const newest = newestStmt.get();
+    return {
+      ...counts,
+      oldestDigest: oldest?.generated_at,
+      newestDigest: newest?.generated_at
+    };
+  }
+  /**
+   * Delete a specific digest
+   */
+  delete(id) {
+    const stmt = this.db.prepare("DELETE FROM digests WHERE id = ?");
+    const result = stmt.run(id);
+    return result.changes > 0;
+  }
+  /**
+   * Close the database connection
+   */
+  close() {
+    this.db.close();
+  }
+};
+
 // plugins/pattern-radar/src/validation/quick-scan.ts
 var QUICK_SCAN_THRESHOLDS = {
   minPoints: 5,
@@ -31584,6 +31893,11 @@ async function main() {
   const ghSource = new GitHubSource(githubToken);
   const perplexitySource = new PerplexitySource();
   const detector = new PatternDetector();
+  const digestStorage = new DigestStorage();
+  const pruned = digestStorage.pruneStaleDigests();
+  if (pruned > 0) {
+    console.error(`[pattern-radar] Pruned ${pruned} stale digests`);
+  }
   const profile = configManager.loadUserProfile();
   let userDomains = config2.domains;
   if (userDomains.length === 0 && profile) {
@@ -31595,7 +31909,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "pattern-radar",
-    version: "0.4.1"
+    version: "0.5.0"
   });
   server.tool(
     "scan_trends",
@@ -31637,6 +31951,8 @@ async function main() {
         domains: userDomains,
         generatedAt: (/* @__PURE__ */ new Date()).toISOString()
       };
+      const savedDigest = digestStorage.create(validSignals, patterns, userDomains);
+      console.error(`[pattern-radar] Saved digest ${savedDigest.id} (${validSignals.length} signals, ${patterns.length} patterns)`);
       let output = `# Trend Scan: ${args.topic}
 
 `;
@@ -31720,10 +32036,14 @@ ${errors.map((e) => `- ${e}`).join("\n")}
       const deadSignals = scannedSignals.filter((s) => s.quickScan?.tier === "dead");
       const patterns = detector.detectPatterns(validSignals, userDomains);
       const relevantPatterns = patterns.filter((p) => p.relevanceScore > 0.4);
+      const savedDigest = digestStorage.create(validSignals, patterns, userDomains);
+      console.error(`[pattern-radar] Saved digest ${savedDigest.id} (${validSignals.length} signals, ${patterns.length} patterns)`);
       let output = `# Your Radar Digest
 
 `;
-      output += `*Generated: ${(/* @__PURE__ */ new Date()).toISOString()}*
+      output += `*Digest ID: ${savedDigest.id}*
+`;
+      output += `*Generated: ${savedDigest.generatedAt}*
 `;
       output += `*Timeframe: ${timeframe}*
 `;
@@ -32324,6 +32644,210 @@ Link: ${s.url}
 `;
       return {
         content: [{ type: "text", text: output }]
+      };
+    }
+  );
+  server.tool(
+    "list_digests",
+    "List saved radar digests with optional status filter",
+    {
+      status: external_exports3.enum(["fresh", "actioned", "stale"]).optional().describe("Filter by status"),
+      limit: external_exports3.number().optional().describe("Max digests to return (default: 10)")
+    },
+    async (args) => {
+      const digests = digestStorage.list(args.status, args.limit || 10);
+      if (digests.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No digests found${args.status ? ` with status '${args.status}'` : ""}.`
+            }
+          ]
+        };
+      }
+      let output = `# Saved Digests (${digests.length})
+
+`;
+      for (const d of digests) {
+        const statusEmoji = { fresh: "\u{1F195}", actioned: "\u2713", stale: "\u23F0" }[d.status];
+        output += `## ${statusEmoji} ${d.id.slice(0, 8)}...
+`;
+        output += `- **Status:** ${d.status}
+`;
+        output += `- **Generated:** ${d.generatedAt}
+`;
+        output += `- **Signals:** ${d.signalCount} | **Patterns:** ${d.patternCount}
+`;
+        output += `- **Domains:** ${d.domains.join(", ") || "none"}
+`;
+        if (d.topPatternTitles.length > 0) {
+          output += `- **Top Patterns:** ${d.topPatternTitles.slice(0, 2).join(", ")}
+`;
+        }
+        if (d.lastActionedAt) {
+          output += `- **Last Actioned:** ${d.lastActionedAt}
+`;
+        }
+        output += `- **Expires:** ${d.expiresAt}
+
+`;
+      }
+      const stats = digestStorage.getStats();
+      output += `---
+`;
+      output += `*Total: ${stats.total} | Fresh: ${stats.fresh} | Actioned: ${stats.actioned} | Stale: ${stats.stale}*
+`;
+      return {
+        content: [
+          {
+            type: "text",
+            text: output
+          }
+        ]
+      };
+    }
+  );
+  server.tool(
+    "get_digest",
+    "Get full details of a specific digest including all signals and patterns",
+    {
+      digest_id: external_exports3.string().describe("Digest ID (full or partial)")
+    },
+    async (args) => {
+      const digests = digestStorage.list(void 0, 100);
+      const match = digests.find(
+        (d) => d.id === args.digest_id || d.id.startsWith(args.digest_id)
+      );
+      if (!match) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Digest '${args.digest_id}' not found. Use list_digests to see available digests.`
+            }
+          ]
+        };
+      }
+      const data = digestStorage.getData(match.id);
+      if (!data) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Digest data not found for ${match.id}.`
+            }
+          ]
+        };
+      }
+      digestStorage.markActioned(match.id);
+      let output = `# Digest: ${match.id}
+
+`;
+      output += `- **Status:** ${match.status} \u2192 actioned
+`;
+      output += `- **Generated:** ${match.generatedAt}
+`;
+      output += `- **Domains:** ${match.domains.join(", ") || "none"}
+
+`;
+      if (data.patterns.length > 0) {
+        output += `## Patterns (${data.patterns.length})
+
+`;
+        for (const p of data.patterns) {
+          output += `### ${p.title}
+`;
+          output += `*Relevance: ${(p.relevanceScore * 100).toFixed(0)}%*
+
+`;
+          output += `${p.description}
+
+`;
+          if (p.actionable.length > 0) {
+            output += `**Actions:**
+`;
+            for (const a of p.actionable) {
+              output += `- [${a.type}] ${a.suggestion}
+`;
+            }
+            output += "\n";
+          }
+        }
+      }
+      output += `## Signals (${data.signals.length})
+
+`;
+      for (const s of data.signals.slice(0, 20)) {
+        const badge = s.quickScan?.tier === "verified" ? "\u2713" : s.quickScan?.tier === "dead" ? "\u2717" : "\u26A0";
+        output += `- ${badge} [${s.source}] ${s.title}`;
+        if (s.url) output += ` - ${s.url}`;
+        output += "\n";
+      }
+      if (data.signals.length > 20) {
+        output += `
+*...and ${data.signals.length - 20} more signals*
+`;
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: output
+          }
+        ]
+      };
+    }
+  );
+  server.tool(
+    "get_digest_stats",
+    "Get statistics about saved digests",
+    {},
+    async () => {
+      const stats = digestStorage.getStats();
+      let output = `# Digest Statistics
+
+`;
+      output += `- **Total Digests:** ${stats.total}
+`;
+      output += `- **Fresh:** ${stats.fresh}
+`;
+      output += `- **Actioned:** ${stats.actioned}
+`;
+      output += `- **Stale:** ${stats.stale}
+
+`;
+      if (stats.oldestDigest) {
+        output += `- **Oldest:** ${stats.oldestDigest}
+`;
+      }
+      if (stats.newestDigest) {
+        output += `- **Newest:** ${stats.newestDigest}
+`;
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: output
+          }
+        ]
+      };
+    }
+  );
+  server.tool(
+    "prune_digests",
+    "Delete stale digests (unactioned and past expiration)",
+    {},
+    async () => {
+      const pruned2 = digestStorage.pruneStaleDigests();
+      return {
+        content: [
+          {
+            type: "text",
+            text: pruned2 > 0 ? `Pruned ${pruned2} stale digest(s).` : "No stale digests to prune."
+          }
+        ]
       };
     }
   );

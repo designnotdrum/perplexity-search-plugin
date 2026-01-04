@@ -57,6 +57,7 @@ export interface ValidationResult {
  */
 export interface Signal {
   id: string;
+  digestId?: string;  // Provenance: which digest this signal belongs to
   source: 'hackernews' | 'github' | 'perplexity' | 'reddit' | 'rss';
   title: string;
   url?: string;
@@ -73,6 +74,7 @@ export interface Signal {
  */
 export interface Pattern {
   id: string;
+  digestId?: string;  // Provenance: which digest this pattern belongs to
   title: string;
   description: string;
   signals: Signal[];
@@ -164,13 +166,71 @@ export interface ScanResult {
 }
 
 /**
- * Radar digest result
+ * Radar digest result (ephemeral, returned from tools)
  */
 export interface DigestResult {
   patterns: Pattern[];
   topSignals: Signal[];
   domains: string[];
   generatedAt: string;
+}
+
+/**
+ * Digest lifecycle status
+ */
+export type DigestStatus = 'fresh' | 'actioned' | 'stale';
+
+/**
+ * A persisted radar digest with lifecycle management
+ */
+export interface RadarDigest {
+  id: string;
+  scope: 'global';              // Always global (forward-looking tool)
+  generatedAt: string;          // ISO timestamp
+  status: DigestStatus;
+  lastActionedAt?: string;      // When user explored/validated a signal
+  expiresAt: string;            // generatedAt + 30 days
+  domains: string[];            // User's domains at generation time
+  signalCount: number;
+  patternCount: number;
+  // Summary for display without loading full data
+  topPatternTitles: string[];
+  topSignalTitles: string[];
+}
+
+/**
+ * Full digest data stored separately (to keep digest list lightweight)
+ */
+export interface RadarDigestData {
+  digestId: string;
+  signals: Signal[];
+  patterns: Pattern[];
+}
+
+/**
+ * Row format in SQLite for digests
+ */
+export interface DigestRow {
+  id: string;
+  scope: string;
+  generated_at: string;
+  status: string;
+  last_actioned_at: string | null;
+  expires_at: string;
+  domains_json: string;
+  signal_count: number;
+  pattern_count: number;
+  top_pattern_titles_json: string;
+  top_signal_titles_json: string;
+}
+
+/**
+ * Row format in SQLite for digest data
+ */
+export interface DigestDataRow {
+  digest_id: string;
+  signals_json: string;
+  patterns_json: string;
 }
 
 /**

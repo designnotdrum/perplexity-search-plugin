@@ -23,3 +23,12 @@ export { Mem0Client } from './mem0-client';
 
 // Instructions
 export { getInstructions, USER_INSTRUCTIONS_PATH, DEFAULT_INSTRUCTIONS } from './instructions';
+
+// Scope detection
+export {
+  detectScope,
+  detectScopeWithDetails,
+  isValidScope,
+  parseScope,
+  type ScopeDetectionResult,
+} from './scope';

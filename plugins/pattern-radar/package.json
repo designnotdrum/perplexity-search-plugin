@@ -1,6 +1,6 @@
 {
   "name": "pattern-radar-mcp",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "MCP server for personalized trend and pattern detection",
   "main": "dist/index.js",
   "scripts": {
@@ -26,10 +26,15 @@
   "dependencies": {
     "@brain-jar/core": "*",
     "@inquirer/prompts": "^8.1.0",
-    "@modelcontextprotocol/sdk": "^1.25.1"
+    "@modelcontextprotocol/sdk": "^1.25.1",
+    "better-sqlite3": "^11.9.1",
+    "uuid": "^11.1.0",
+    "zod": "^3.25.28"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.0.3",
+    "@types/uuid": "^10.0.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
