@@ -10,6 +10,7 @@ import { PerplexitySource } from './sources/perplexity';
 import { PatternDetector } from './detector';
 import { ConfigManager } from './config';
 import { Signal, Pattern, DigestResult } from './types';
+import { quickScan, quickScanAll, deepValidate } from './validation';
 
 async function main(): Promise<void> {
   // Initialize components
@@ -38,7 +39,7 @@ async function main(): Promise<void> {
   // Create MCP server
   const server = new McpServer({
     name: 'pattern-radar',
-    version: '0.2.0',
+    version: '0.3.0',
   });
 
   // --- Pattern Radar Tools ---
@@ -82,19 +83,24 @@ async function main(): Promise<void> {
         }
       }
 
-      // Detect patterns
-      const patterns = detector.detectPatterns(allSignals, userDomains);
+      // Run quick scan on all signals
+      const scannedSignals = quickScanAll(allSignals);
+      const validSignals = scannedSignals.filter(s => s.quickScan?.tier !== 'dead');
+      const deadCount = scannedSignals.length - validSignals.length;
+
+      // Detect patterns from valid signals only
+      const patterns = detector.detectPatterns(validSignals, userDomains);
 
       // Format result
       const result: DigestResult = {
         patterns,
-        topSignals: allSignals.slice(0, 10),
+        topSignals: validSignals.slice(0, 10),
         domains: userDomains,
         generatedAt: new Date().toISOString(),
       };
 
       let output = `# Trend Scan: ${args.topic}\n\n`;
-      output += `Found ${allSignals.length} signals, ${patterns.length} patterns\n`;
+      output += `Found ${validSignals.length} valid signals (${deadCount} filtered), ${patterns.length} patterns\n`;
       output += `Your domains: ${userDomains.join(', ') || 'none set'}\n\n`;
 
       if (errors.length > 0) {
@@ -117,14 +123,20 @@ async function main(): Promise<void> {
       }
 
       output += `## Top Signals\n\n`;
-      for (const s of allSignals.slice(0, 10)) {
-        output += `- [${s.source}] ${s.title} (score: ${s.score})`;
+      for (const s of validSignals.slice(0, 10)) {
+        const badge = s.quickScan?.tier === 'verified' ? '✓' : '⚠';
+        const meta = s.quickScan
+          ? `${s.quickScan.engagement.points} pts, ${s.quickScan.engagement.comments} comments`
+          : '';
+        output += `- ${badge} [${s.source}] ${s.title} (${meta})`;
         if (s.url) output += ` - ${s.url}`;
         output += '\n';
       }
 
-      // Note about perplexity
-      output += `\n---\n*For deeper analysis, use perplexity_search with: "${perplexitySource.generateQuery(args.topic, userDomains)}"*`;
+      // Note about perplexity and validation
+      output += `\n---\n`;
+      output += `*Use \`validate_signal\` before adding signals to reports.*\n`;
+      output += `*For deeper analysis: \`perplexity_search("${perplexitySource.generateQuery(args.topic, userDomains)}")\`*`;
 
       return {
         content: [
@@ -162,8 +174,13 @@ async function main(): Promise<void> {
         allSignals.push(...ghResult.signals);
       }
 
-      // Detect patterns
-      const patterns = detector.detectPatterns(allSignals, userDomains);
+      // Run quick scan on all signals
+      const scannedSignals = quickScanAll(allSignals);
+      const validSignals = scannedSignals.filter(s => s.quickScan?.tier !== 'dead');
+      const deadSignals = scannedSignals.filter(s => s.quickScan?.tier === 'dead');
+
+      // Detect patterns from valid signals only
+      const patterns = detector.detectPatterns(validSignals, userDomains);
 
       // Filter to relevant patterns
       const relevantPatterns = patterns.filter((p) => p.relevanceScore > 0.4);
@@ -196,12 +213,32 @@ async function main(): Promise<void> {
         }
       }
 
-      output += `## Other Trending\n\n`;
-      const otherSignals = allSignals
-        .filter((s) => !relevantPatterns.some((p) => p.signals.includes(s)))
-        .slice(0, 5);
-      for (const s of otherSignals) {
-        output += `- [${s.source}] ${s.title}\n`;
+      // Show valid signals with quality badges
+      output += `## Top Signals\n\n`;
+      for (const s of validSignals.slice(0, 10)) {
+        const badge = s.quickScan?.tier === 'verified' ? '✓' : '⚠';
+        const meta = s.quickScan
+          ? `${s.quickScan.engagement.points} pts, ${s.quickScan.engagement.comments} comments, ${s.quickScan.age.days}d ago`
+          : '';
+        output += `- ${badge} [${s.source}] ${s.title}`;
+        if (meta) output += ` (${meta})`;
+        if (s.url) output += `\n  ${s.url}`;
+        output += '\n';
+      }
+
+      // Show filtered signals count
+      if (deadSignals.length > 0) {
+        output += `\n## Filtered Out (low engagement)\n\n`;
+        output += `*${deadSignals.length} signals skipped (< 5 pts and < 2 comments)*\n`;
+        for (const s of deadSignals.slice(0, 3)) {
+          const meta = s.quickScan
+            ? `${s.quickScan.engagement.points} pts, ${s.quickScan.engagement.comments} comments`
+            : '';
+          output += `- ${s.title} (${meta})\n`;
+        }
+        if (deadSignals.length > 3) {
+          output += `- ...and ${deadSignals.length - 3} more\n`;
+        }
       }
 
       return {
@@ -481,6 +518,94 @@ async function main(): Promise<void> {
             output += `  *${a.reason}* (${a.effort} effort)\n\n`;
           }
         }
+      }
+
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: output,
+          },
+        ],
+      };
+    }
+  );
+
+  server.tool(
+    'validate_signal',
+    'Run deep validation on a signal before adding to a report. Checks site health, recency, and product signals.',
+    {
+      url: z.string().describe('URL to validate'),
+      title: z.string().optional().describe('Signal title for context'),
+    },
+    async (args: { url: string; title?: string }) => {
+      // Create a minimal signal for validation
+      const signal: Signal = {
+        id: `manual-${Date.now()}`,
+        source: 'hackernews',
+        title: args.title || args.url,
+        url: args.url,
+        score: 0,
+        timestamp: new Date().toISOString(),
+        metadata: {},
+      };
+
+      // Run quick scan first
+      signal.quickScan = quickScan(signal);
+
+      // Run deep validation
+      const validation = await deepValidate(signal);
+
+      let output = `# Validation Result: ${args.title || args.url}\n\n`;
+
+      // Overall verdict with emoji
+      const verdictEmoji = {
+        verified: '✅',
+        caution: '⚠️',
+        dead: '🚫',
+      }[validation.overallVerdict];
+
+      output += `## Verdict: ${verdictEmoji} ${validation.overallVerdict.toUpperCase()}\n\n`;
+
+      // Site health
+      output += `### Site Health\n`;
+      output += `- Status: ${validation.siteHealth.status ?? 'unreachable'}\n`;
+      output += `- Live: ${validation.siteHealth.isLive ? 'Yes' : 'No'}\n`;
+      output += `- Checked: ${validation.siteHealth.checkedAt}\n\n`;
+
+      // Recency
+      output += `### Recency\n`;
+      output += `- Days since post: ${validation.recency.daysSincePost}\n`;
+      output += `- Stale (>90d): ${validation.recency.isStale ? 'Yes' : 'No'}\n\n`;
+
+      // Product signals
+      output += `### Product Signals\n`;
+      output += `- Method: ${validation.productSignals.method}\n`;
+      output += `- Is Product: ${validation.productSignals.isProduct ?? 'inconclusive'}\n`;
+      output += `- Confidence: ${validation.productSignals.confidence}\n`;
+
+      if (validation.productSignals.signals.length > 0) {
+        output += `\n**Positive Signals:**\n`;
+        for (const s of validation.productSignals.signals) {
+          output += `- ✓ ${s}\n`;
+        }
+      }
+
+      if (validation.productSignals.redFlags.length > 0) {
+        output += `\n**Red Flags:**\n`;
+        for (const flag of validation.productSignals.redFlags) {
+          output += `- ⚠ ${flag}\n`;
+        }
+      }
+
+      // Recommendation
+      output += `\n---\n\n`;
+      if (validation.overallVerdict === 'verified') {
+        output += `**Recommendation:** Safe to include in reports.\n`;
+      } else if (validation.overallVerdict === 'caution') {
+        output += `**Recommendation:** Review manually before including. Check for recent activity.\n`;
+      } else {
+        output += `**Recommendation:** Do not include. Site is down or project appears dead.\n`;
       }
 
       return {
