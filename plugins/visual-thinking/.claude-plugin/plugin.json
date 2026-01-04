@@ -1,6 +1,6 @@
 {
   "name": "visual-thinking",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Persistent diagrams that Claude can read, build on, and export",
   "author": {
     "name": "Nick Mason"

@@ -76,7 +76,7 @@ export interface ListDiagramsInput {
  */
 export interface ExportDiagramInput {
   id: string;
-  format: 'mermaid' | 'svg' | 'drawio';
+  format?: 'mermaid' | 'drawio';
 }
 
 /**
