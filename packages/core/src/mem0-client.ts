@@ -187,6 +187,54 @@ export class Mem0Client {
   }
 
   /**
+   * One-time migration: Prune profile history to one snapshot per day.
+   * Keeps the latest snapshot from each day, deletes the rest.
+   * Returns count of deleted snapshots.
+   */
+  async pruneProfileHistory(): Promise<number> {
+    try {
+      const response = await this.client.getAll({
+        user_id: this.userId,
+        agent_id: Mem0Client.PROFILE_AGENT_ID,
+      });
+      const results: Mem0Memory[] = this.extractResults(response);
+
+      // Group snapshots by day
+      const byDay = new Map<string, Array<{ id: string; timestamp: string }>>();
+
+      for (const r of results) {
+        if (r.metadata?.type !== 'profile-snapshot') continue;
+        const ts = (r.metadata?.timestamp as string) || r.created_at || '';
+        const day = ts.split('T')[0];
+        if (!day) continue;
+
+        if (!byDay.has(day)) {
+          byDay.set(day, []);
+        }
+        byDay.get(day)!.push({ id: r.id, timestamp: ts });
+      }
+
+      // For each day, keep only the latest snapshot
+      let deletedCount = 0;
+      for (const [_day, snapshots] of byDay) {
+        if (snapshots.length <= 1) continue;
+
+        // Sort by timestamp descending, keep first (latest), delete rest
+        snapshots.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+        for (let i = 1; i < snapshots.length; i++) {
+          const deleted = await this.delete(snapshots[i].id);
+          if (deleted) deletedCount++;
+        }
+      }
+
+      return deletedCount;
+    } catch (error) {
+      console.warn('Failed to prune profile history:', error);
+      return 0;
+    }
+  }
+
+  /**
    * Gets the latest profile snapshot from Mem0.
    * Returns null if no profile exists.
    */

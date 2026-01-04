@@ -99,6 +99,16 @@ async function main() {
         catch (error) {
             console.error('[shared-memory] Profile sync failed:', error);
         }
+        // One-time migration: prune duplicate profile snapshots
+        try {
+            const pruned = await mem0Client.pruneProfileHistory();
+            if (pruned > 0) {
+                console.error(`[shared-memory] Pruned ${pruned} duplicate profile snapshot(s)`);
+            }
+        }
+        catch (error) {
+            console.error('[shared-memory] Profile prune failed:', error);
+        }
     }
     if (!isConfigured) {
         console.error('[shared-memory] Warning: Not configured. Run with --setup or create config file.');
