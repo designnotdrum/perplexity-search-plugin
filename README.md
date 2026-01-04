@@ -105,7 +105,8 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Perplexity Sonar** for real-time, cited answers
 - **Bundled dependencies** for instant marketplace install
 
-### forensics v0.2.1
+### forensics v0.3.0
+- **Subagent-driven investigations** keep main context clean with Haiku subagents for data-heavy operations
 - **Investigation persistence** across sessions
 - **7 MCP tools** for analysis and spec generation
 - **Skill-level adaptation** from beginner to expert

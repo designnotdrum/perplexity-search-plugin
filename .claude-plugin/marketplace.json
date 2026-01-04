@@ -26,7 +26,7 @@
     {
       "name": "forensics",
       "description": "Reverse engineer black-box systems: APIs, protocols, features, and data formats",
-      "version": "0.2.1",
+      "version": "0.3.0",
       "source": "./plugins/forensics",
       "author": {
         "name": "Nick Mason"
