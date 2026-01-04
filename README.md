@@ -123,7 +123,7 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Mermaid diagrams** (mindmap, flowchart, sequence, ERD, etc.)
 - **Version history** tracks diagram evolution
 
-### pattern-radar v0.4.0
+### pattern-radar v0.4.1
 - **Dynamic source architecture** - Pluggable adapter system for adding new source types
 - **Reddit adapter** - Scan subreddits for trends and discussions
 - **RSS adapter** - Monitor any RSS/Atom feed for signals
@@ -131,7 +131,7 @@ All plugins share the same user profile and memory infrastructure. Install share
 - **Topic mapper** - 13 curated domains (sports, finance, tech, gaming, etc.) with automatic source selection
 - **Custom adapter support** - `/create-adapter` skill to add your own sources
 - **8 MCP tools** for trend scanning, pattern detection, and signal validation
-- **HN + GitHub + Reddit + RSS** scanning with profile-aware relevance
+- **Graceful fallback** - Falls back to HN/GitHub when curated sources lack specific configs
 
 ## Requirements
 

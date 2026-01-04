@@ -31595,7 +31595,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "pattern-radar",
-    version: "0.4.0"
+    version: "0.4.1"
   });
   server.tool(
     "scan_trends",
@@ -32222,6 +32222,47 @@ Link: ${s.url}
         enabled: true
       };
       const instances = createInstancesForTopic2(topicConfig);
+      if (instances.length === 0 && resolution.sources.length > 0) {
+        console.error(`[scan_topic] All ${resolution.sources.length} curated sources failed to instantiate - falling back to HN/GitHub`);
+        const hnResult = await hnSource.search(args.topic, limit);
+        const ghResult = await ghSource.search(args.topic, limit);
+        const allSignals2 = [...hnResult.signals || [], ...ghResult.signals || []];
+        const scannedSignals2 = quickScanAll(allSignals2);
+        const validSignals2 = scannedSignals2.filter((s) => s.quickScan?.tier !== "dead");
+        let output2 = `# Topic Scan: ${args.topic}
+
+`;
+        output2 += `*Resolution: ${resolution.resolutionMethod} \u2192 fallback`;
+        if (resolution.matchedDomain) output2 += ` (matched domain: ${resolution.matchedDomain}, but no specific source configs)`;
+        output2 += `*
+
+`;
+        output2 += `\u26A0\uFE0F **Note:** Curated mapping found for "${resolution.matchedDomain}" but requires specific source configs.
+`;
+        output2 += `Use \`/create-adapter\` skill to configure Reddit subreddits or RSS feeds for this domain.
+
+`;
+        output2 += `Found ${validSignals2.length} signals from HN + GitHub fallback
+
+`;
+        output2 += `## Top Signals
+
+`;
+        for (const s of validSignals2.slice(0, 10)) {
+          const badge = s.quickScan?.tier === "verified" ? "\u2713" : "\u26A0";
+          output2 += `- ${badge} [${s.source}] ${s.title}`;
+          if (s.url) output2 += ` - ${s.url}`;
+          output2 += "\n";
+        }
+        output2 += `
+---
+`;
+        output2 += `*Tip: Configure specific sources with \`/create-adapter\` for better results.*
+`;
+        return {
+          content: [{ type: "text", text: output2 }]
+        };
+      }
       const allSignals = [];
       const sourceResults = [];
       for (const instance of instances) {

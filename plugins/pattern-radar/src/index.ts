@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   // Create MCP server
   const server = new McpServer({
     name: 'pattern-radar',
-    version: '0.4.0',
+    version: '0.4.1',
   });
 
   // --- Pattern Radar Tools ---
@@ -685,6 +685,42 @@ async function main(): Promise<void> {
       };
 
       const instances = createInstancesForTopic(topicConfig);
+
+      // If all curated sources failed to create instances (missing configs),
+      // fall back to HN/GitHub with the topic as search query
+      if (instances.length === 0 && resolution.sources.length > 0) {
+        console.error(`[scan_topic] All ${resolution.sources.length} curated sources failed to instantiate - falling back to HN/GitHub`);
+
+        const hnResult = await hnSource.search(args.topic, limit);
+        const ghResult = await ghSource.search(args.topic, limit);
+        const allSignals = [...(hnResult.signals || []), ...(ghResult.signals || [])];
+        const scannedSignals = quickScanAll(allSignals);
+        const validSignals = scannedSignals.filter(s => s.quickScan?.tier !== 'dead');
+
+        let output = `# Topic Scan: ${args.topic}\n\n`;
+        output += `*Resolution: ${resolution.resolutionMethod} → fallback`;
+        if (resolution.matchedDomain) output += ` (matched domain: ${resolution.matchedDomain}, but no specific source configs)`;
+        output += `*\n\n`;
+        output += `⚠️ **Note:** Curated mapping found for "${resolution.matchedDomain}" but requires specific source configs.\n`;
+        output += `Use \`/create-adapter\` skill to configure Reddit subreddits or RSS feeds for this domain.\n\n`;
+        output += `Found ${validSignals.length} signals from HN + GitHub fallback\n\n`;
+
+        output += `## Top Signals\n\n`;
+        for (const s of validSignals.slice(0, 10)) {
+          const badge = s.quickScan?.tier === 'verified' ? '✓' : '⚠';
+          output += `- ${badge} [${s.source}] ${s.title}`;
+          if (s.url) output += ` - ${s.url}`;
+          output += '\n';
+        }
+
+        output += `\n---\n`;
+        output += `*Tip: Configure specific sources with \`/create-adapter\` for better results.*\n`;
+
+        return {
+          content: [{ type: 'text' as const, text: output }],
+        };
+      }
+
       const allSignals: Signal[] = [];
       const sourceResults: { adapter: string; count: number; error?: string }[] = [];
 
