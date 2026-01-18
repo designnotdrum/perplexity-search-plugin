@@ -946,6 +946,213 @@ async function main(): Promise<void> {
     }
   );
 
+  server.tool(
+    'pause_work_session',
+    'Pause the current work session (ends current segment)',
+    {
+      session_id: z.string().optional().describe('Session ID (uses active if omitted)'),
+      reason: z.enum(['context_switch', 'break', 'end_of_day', 'unknown']).optional().describe('Why pausing'),
+    },
+    async (args: { session_id?: string; reason?: string }) => {
+      try {
+        const scope = detectScope();
+        const session = args.session_id
+          ? sessionStore.getSession(args.session_id)
+          : sessionStore.getActiveSession(scope);
+
+        if (!session) {
+          return {
+            content: [{ type: 'text' as const, text: 'No active session to pause.' }],
+          };
+        }
+
+        if (session.status !== 'active') {
+          return {
+            content: [{ type: 'text' as const, text: `Session is already ${session.status}.` }],
+          };
+        }
+
+        const paused = sessionStore.pauseSession(session.id, args.reason || 'unknown');
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              message: 'Session paused',
+              session: {
+                id: paused.id,
+                feature_id: paused.feature_id,
+                total_active_seconds: paused.total_active_seconds,
+              },
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'resume_work_session',
+    'Resume a paused work session',
+    {
+      session_id: z.string().optional().describe('Session ID (finds paused session if omitted)'),
+    },
+    async (args: { session_id?: string }) => {
+      try {
+        const scope = detectScope();
+        const session = args.session_id
+          ? sessionStore.getSession(args.session_id)
+          : sessionStore.getActiveSession(scope);
+
+        if (!session) {
+          return {
+            content: [{ type: 'text' as const, text: 'No paused session to resume.' }],
+          };
+        }
+
+        if (session.status !== 'paused') {
+          return {
+            content: [{ type: 'text' as const, text: `Session is ${session.status}, not paused.` }],
+          };
+        }
+
+        const resumed = sessionStore.resumeSession(session.id);
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              message: 'Session resumed',
+              session: {
+                id: resumed.id,
+                feature_id: resumed.feature_id,
+                total_active_seconds: resumed.total_active_seconds,
+              },
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'complete_work_session',
+    'Complete a work session and record final metrics',
+    {
+      session_id: z.string().optional().describe('Session ID (uses active if omitted)'),
+      satisfaction: z.number().min(1).max(5).optional().describe('How well it went (1-5)'),
+      notes: z.string().optional().describe('Learnings or blockers'),
+      files_touched: z.number().optional().describe('Number of files modified'),
+      lines_added: z.number().optional().describe('Lines of code added'),
+      lines_removed: z.number().optional().describe('Lines of code removed'),
+      complexity_rating: z.number().min(1).max(5).optional().describe('Complexity (1-5)'),
+      work_type: z.enum(['feature', 'bugfix', 'refactor', 'docs', 'other']).optional().describe('Type of work'),
+    },
+    async (args: {
+      session_id?: string;
+      satisfaction?: number;
+      notes?: string;
+      files_touched?: number;
+      lines_added?: number;
+      lines_removed?: number;
+      complexity_rating?: number;
+      work_type?: WorkType;
+    }) => {
+      try {
+        const scope = detectScope();
+        const session = args.session_id
+          ? sessionStore.getSession(args.session_id)
+          : sessionStore.getActiveSession(scope);
+
+        if (!session) {
+          return {
+            content: [{ type: 'text' as const, text: 'No active session to complete.' }],
+          };
+        }
+
+        if (session.status === 'completed') {
+          return {
+            content: [{ type: 'text' as const, text: 'Session already completed.' }],
+          };
+        }
+
+        const completed = sessionStore.completeSession(session.id, {
+          satisfaction: args.satisfaction,
+          notes: args.notes,
+          metrics: {
+            files_touched: args.files_touched,
+            lines_added: args.lines_added,
+            lines_removed: args.lines_removed,
+            complexity_rating: args.complexity_rating,
+            work_type: args.work_type,
+          },
+        });
+
+        // Emit memory for cross-plugin visibility
+        const minutes = Math.round(completed.total_active_seconds / 60);
+        localStore.add({
+          content: `Completed: ${completed.feature_description} (${completed.feature_id}) - ${minutes} minutes`,
+          scope: completed.scope,
+          tags: ['chess-timer', 'session-complete', args.work_type || 'other'],
+        });
+
+        // Get comparison to similar sessions
+        const estimate = predictor.getEstimate({ work_type: args.work_type });
+        let comparison = '';
+        if (estimate.sample_count > 0 && estimate.min_seconds > 0) {
+          const avgSimilar = (estimate.min_seconds + estimate.max_seconds) / 2;
+          const diff = ((completed.total_active_seconds - avgSimilar) / avgSimilar) * 100;
+          if (diff < -10) {
+            comparison = `About ${Math.abs(Math.round(diff))}% faster than similar work.`;
+          } else if (diff > 10) {
+            comparison = `About ${Math.round(diff)}% slower than similar work.`;
+          } else {
+            comparison = 'Right in line with similar work.';
+          }
+        }
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              message: 'Session completed',
+              session: {
+                id: completed.id,
+                feature_id: completed.feature_id,
+                description: completed.feature_description,
+                total_active_seconds: completed.total_active_seconds,
+                total_minutes: minutes,
+                satisfaction: completed.satisfaction,
+              },
+              comparison: comparison || null,
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+        };
+      }
+    }
+  );
+
   // Connect transport
   const transport = new StdioServerTransport();
   await server.connect(transport);
