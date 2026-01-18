@@ -446,4 +446,135 @@ describe('SessionStore', () => {
       expect(metrics[0].work_type).toBe('feature');
     });
   });
+
+  describe('pauseSession', () => {
+    it('should end the current segment and update status', () => {
+      const session = store.createSession({
+        feature_id: 'feature/auth',
+        description: 'Test',
+        scope: 'project:myapp',
+      });
+
+      const paused = store.pauseSession(session.id, 'break');
+
+      expect(paused.status).toBe('paused');
+      expect(paused.total_active_seconds).toBeGreaterThanOrEqual(0);
+
+      const segments = store.getSegments(session.id);
+      expect(segments[0].ended_at).not.toBeNull();
+      expect(segments[0].trigger_end).toBe('break');
+    });
+
+    it('should throw error if session not found', () => {
+      expect(() => store.pauseSession('non-existent', 'break')).toThrow();
+    });
+
+    it('should throw error if session is not active', () => {
+      const session = store.createSession({
+        feature_id: 'feature/auth',
+        description: 'Test',
+        scope: 'project:myapp',
+      });
+
+      store.updateSessionStatus(session.id, 'completed');
+
+      expect(() => store.pauseSession(session.id, 'break')).toThrow();
+    });
+  });
+
+  describe('resumeSession', () => {
+    it('should create a new segment and set status to active', () => {
+      const session = store.createSession({
+        feature_id: 'feature/auth',
+        description: 'Test',
+        scope: 'project:myapp',
+      });
+
+      store.pauseSession(session.id, 'break');
+      const resumed = store.resumeSession(session.id);
+
+      expect(resumed.status).toBe('active');
+
+      const segments = store.getSegments(session.id);
+      expect(segments).toHaveLength(2);
+      expect(segments[1].trigger_start).toBe('resume');
+    });
+
+    it('should throw error if session not found', () => {
+      expect(() => store.resumeSession('non-existent')).toThrow();
+    });
+
+    it('should throw error if session is not paused', () => {
+      const session = store.createSession({
+        feature_id: 'feature/auth',
+        description: 'Test',
+        scope: 'project:myapp',
+      });
+
+      expect(() => store.resumeSession(session.id)).toThrow();
+    });
+  });
+
+  describe('completeSession', () => {
+    it('should finalize the session with metrics', () => {
+      const session = store.createSession({
+        feature_id: 'feature/auth',
+        description: 'Test',
+        scope: 'project:myapp',
+      });
+
+      const completed = store.completeSession(session.id, {
+        satisfaction: 4,
+        notes: 'Went well',
+        metrics: {
+          files_touched: 5,
+          lines_added: 120,
+          lines_removed: 30,
+          complexity_rating: 3,
+          work_type: 'feature',
+        },
+      });
+
+      expect(completed.status).toBe('completed');
+      expect(completed.completed_at).not.toBeNull();
+      expect(completed.satisfaction).toBe(4);
+      expect(completed.notes).toBe('Went well');
+
+      const metrics = store.getMetrics(session.id);
+      expect(metrics).not.toBeNull();
+      expect(metrics.length).toBeGreaterThan(0);
+      expect(metrics[metrics.length - 1].files_touched).toBe(5);
+    });
+
+    it('should throw error if session not found', () => {
+      expect(() => store.completeSession('non-existent', {})).toThrow();
+    });
+
+    it('should complete session without optional fields', () => {
+      const session = store.createSession({
+        feature_id: 'feature/auth',
+        description: 'Test',
+        scope: 'project:myapp',
+      });
+
+      const completed = store.completeSession(session.id, {});
+
+      expect(completed.status).toBe('completed');
+      expect(completed.completed_at).not.toBeNull();
+    });
+
+    it('should end current segment on completion', () => {
+      const session = store.createSession({
+        feature_id: 'feature/auth',
+        description: 'Test',
+        scope: 'project:myapp',
+      });
+
+      store.completeSession(session.id, {});
+
+      const segments = store.getSegments(session.id);
+      expect(segments[0].ended_at).not.toBeNull();
+      expect(segments[0].trigger_end).toBe('session_complete');
+    });
+  });
 });

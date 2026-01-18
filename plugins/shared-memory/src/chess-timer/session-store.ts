@@ -28,6 +28,18 @@ export interface AddMetricsInput {
   work_type: WorkType;
 }
 
+export interface CompleteSessionInput {
+  satisfaction?: number;
+  notes?: string;
+  metrics?: {
+    files_touched?: number;
+    lines_added?: number;
+    lines_removed?: number;
+    complexity_rating?: number;
+    work_type?: WorkType;
+  };
+}
+
 interface DbWorkSession {
   id: string;
   feature_id: string;
@@ -297,8 +309,105 @@ export class SessionStore {
     };
   }
 
+  pauseSession(sessionId: string, reason: string): WorkSession {
+    const session = this.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+    if (session.status !== 'active') {
+      throw new Error(`Cannot pause session with status: ${session.status}`);
+    }
+
+    // End the current segment
+    this.endCurrentSegment(sessionId, reason);
+
+    // Calculate total active time
+    const totalSeconds = this.calculateTotalActiveSeconds(sessionId);
+    this.updateTotalActiveSeconds(sessionId, totalSeconds);
+
+    // Update status
+    this.updateSessionStatus(sessionId, 'paused');
+
+    return this.getSession(sessionId)!;
+  }
+
+  resumeSession(sessionId: string): WorkSession {
+    const session = this.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+    if (session.status !== 'paused') {
+      throw new Error(`Cannot resume session with status: ${session.status}`);
+    }
+
+    // Create a new segment
+    this.createNewSegment(sessionId, 'resume');
+
+    // Update status
+    this.updateSessionStatus(sessionId, 'active');
+
+    return this.getSession(sessionId)!;
+  }
+
+  completeSession(sessionId: string, input: CompleteSessionInput): WorkSession {
+    const session = this.getSession(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    // End the current segment if one is open
+    const segments = this.getSegments(sessionId);
+    const openSegment = segments.find((s) => s.ended_at === null);
+    if (openSegment) {
+      this.endCurrentSegment(sessionId, 'session_complete');
+    }
+
+    // Calculate total active time
+    const totalSeconds = this.calculateTotalActiveSeconds(sessionId);
+    this.updateTotalActiveSeconds(sessionId, totalSeconds);
+
+    // Update satisfaction if provided
+    if (input.satisfaction !== undefined) {
+      this.updateSessionSatisfaction(sessionId, input.satisfaction);
+    }
+
+    // Update notes if provided
+    if (input.notes !== undefined) {
+      this.updateSessionNotes(sessionId, input.notes);
+    }
+
+    // Add metrics if provided
+    if (input.metrics && input.metrics.work_type) {
+      this.addMetrics(sessionId, {
+        files_touched: input.metrics.files_touched,
+        lines_added: input.metrics.lines_added,
+        lines_removed: input.metrics.lines_removed,
+        complexity_rating: input.metrics.complexity_rating,
+        work_type: input.metrics.work_type,
+      });
+    }
+
+    // Update status to completed
+    this.updateSessionStatus(sessionId, 'completed');
+
+    return this.getSession(sessionId)!;
+  }
+
   close(): void {
     this.db.close();
+  }
+
+  private calculateTotalActiveSeconds(sessionId: string): number {
+    const segments = this.getSegments(sessionId);
+    let totalSeconds = 0;
+
+    for (const segment of segments) {
+      const startTime = segment.started_at.getTime();
+      const endTime = segment.ended_at ? segment.ended_at.getTime() : Date.now();
+      totalSeconds += Math.floor((endTime - startTime) / 1000);
+    }
+
+    return totalSeconds;
   }
 
   private createSegmentInternal(sessionId: string, triggerStart: string): WorkSegment {
