@@ -1153,6 +1153,107 @@ async function main(): Promise<void> {
     }
   );
 
+  server.tool(
+    'get_work_estimate',
+    'Get a time estimate for upcoming work based on similar past sessions',
+    {
+      description: z.string().optional().describe('What you plan to build'),
+      work_type: z.enum(['feature', 'bugfix', 'refactor', 'docs', 'other']).optional().describe('Type of work'),
+      complexity_rating: z.number().min(1).max(5).optional().describe('Expected complexity (1-5)'),
+    },
+    async (args: { description?: string; work_type?: WorkType; complexity_rating?: number }) => {
+      try {
+        const estimate = predictor.getEstimate({
+          description: args.description,
+          work_type: args.work_type,
+          complexity_rating: args.complexity_rating,
+        });
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              estimate: {
+                message: estimate.message,
+                confidence: estimate.confidence,
+                sample_count: estimate.sample_count,
+                range_seconds: {
+                  min: estimate.min_seconds,
+                  max: estimate.max_seconds,
+                },
+                range_minutes: {
+                  min: Math.round(estimate.min_seconds / 60),
+                  max: Math.round(estimate.max_seconds / 60),
+                },
+                similar_sessions: estimate.similar_sessions.map((s) => ({
+                  feature_id: s.feature_id,
+                  description: s.description,
+                  minutes: Math.round(s.duration_seconds / 60),
+                })),
+              },
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+        };
+      }
+    }
+  );
+
+  server.tool(
+    'list_work_sessions',
+    'List past work sessions',
+    {
+      scope: z.string().optional().describe('Filter by project scope'),
+      status: z.enum(['active', 'paused', 'completed', 'abandoned']).optional().describe('Filter by status'),
+      limit: z.number().optional().describe('Maximum results (default: 10)'),
+    },
+    async (args: { scope?: string; status?: 'active' | 'paused' | 'completed' | 'abandoned'; limit?: number }) => {
+      try {
+        const sessions = sessionStore.listSessions({
+          scope: args.scope,
+          status: args.status,
+          limit: args.limit || 10,
+        });
+
+        if (sessions.length === 0) {
+          return {
+            content: [{ type: 'text' as const, text: 'No sessions found.' }],
+          };
+        }
+
+        const formatted = sessions.map((s) => ({
+          id: s.id,
+          feature_id: s.feature_id,
+          description: s.feature_description,
+          status: s.status,
+          minutes: Math.round(s.total_active_seconds / 60),
+          started_at: s.started_at.toISOString().split('T')[0],
+          completed_at: s.completed_at?.toISOString().split('T')[0] || null,
+        }));
+
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({ sessions: formatted }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          }],
+        };
+      }
+    }
+  );
+
   // Connect transport
   const transport = new StdioServerTransport();
   await server.connect(transport);
