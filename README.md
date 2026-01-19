@@ -92,8 +92,9 @@ All plugins share the same user profile and memory infrastructure. Install share
 
 ## Highlights
 
-### shared-memory v2.2.1
-- **Auto-install hooks** - Chess timer now bundles hookify rules via setup_chess_timer_hooks tool for fully automatic session management
+### shared-memory v2.2.2
+- **First-run prompt** - New users are automatically prompted to enable chess timer hooks on first launch (opt-in)
+- **Auto-install hooks** - Chess timer bundles hookify rules via setup_chess_timer_hooks tool for fully automatic session management
 - **Chess timer** - Self-calibrating time estimation that tracks how long you actually spend coding, predicts future feature duration based on complexity and work type
 - **7 new MCP tools** - start_work_session, pause/resume/complete, get_work_estimate, list_work_sessions, get_active_session
 - **Confidence levels** - Predictions improve with more samples (low <5, medium 5-14, high 15+)

@@ -129,6 +129,55 @@ async function runSetup(): Promise<void> {
   console.log('[OK] Ready to use shared-memory!\n');
 }
 
+async function promptChessTimerHooks(): Promise<void> {
+  const { confirm } = await import('@inquirer/prompts');
+  const claudeDir = path.join(os.homedir(), '.claude');
+
+  // Check if hooks are already installed
+  const hooks = [
+    CHESS_TIMER_HOOK_START,
+    CHESS_TIMER_HOOK_COMPLETE,
+    CHESS_TIMER_HOOK_COMMIT,
+  ];
+
+  const anyInstalled = hooks.some((hook) => fs.existsSync(path.join(claudeDir, hook)));
+
+  if (anyInstalled) {
+    // Already installed, skip prompt
+    return;
+  }
+
+  console.log('\n[brain] Chess Timer - Automatic Session Tracking\n');
+  console.log('The chess timer tracks how long you spend coding and predicts');
+  console.log('future feature duration based on your actual work patterns.\n');
+  console.log('Enable automatic session management with hookify rules?');
+  console.log('- Auto-start sessions when work begins');
+  console.log('- Auto-complete sessions when stopping');
+  console.log('- Remind to complete on git commits\n');
+
+  const enable = await confirm({
+    message: 'Enable automatic chess timer?',
+    default: true,
+  });
+
+  if (enable) {
+    // Ensure .claude directory exists
+    if (!fs.existsSync(claudeDir)) {
+      fs.mkdirSync(claudeDir, { recursive: true });
+    }
+
+    // Install hooks
+    fs.writeFileSync(path.join(claudeDir, CHESS_TIMER_HOOK_START), CHESS_TIMER_HOOK_START_CONTENT);
+    fs.writeFileSync(path.join(claudeDir, CHESS_TIMER_HOOK_COMPLETE), CHESS_TIMER_HOOK_COMPLETE_CONTENT);
+    fs.writeFileSync(path.join(claudeDir, CHESS_TIMER_HOOK_COMMIT), CHESS_TIMER_HOOK_COMMIT_CONTENT);
+
+    console.log('\n[OK] Chess timer hooks installed!');
+    console.log('[OK] Session tracking will now happen automatically.\n');
+  } else {
+    console.log('\n[OK] Skipped. You can enable later with: setup_chess_timer_hooks\n');
+  }
+}
+
 async function main(): Promise<void> {
   // Handle --setup flag
   if (process.argv.includes('--setup')) {
@@ -185,10 +234,13 @@ async function main(): Promise<void> {
     console.error('[shared-memory] Local storage will work, but Mem0 cloud sync disabled.');
   }
 
+  // Check if chess timer hooks should be installed (first-run only)
+  await promptChessTimerHooks();
+
   // Create MCP server
   const server = new McpServer({
     name: 'shared-memory',
-    version: '2.2.1',
+    version: '2.2.2',
   });
 
   // Register tools

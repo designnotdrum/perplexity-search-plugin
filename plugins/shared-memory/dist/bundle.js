@@ -60484,6 +60484,42 @@ async function runSetup() {
 [OK] Configuration saved to ${getConfigPath()}`);
   console.log("[OK] Ready to use shared-memory!\n");
 }
+async function promptChessTimerHooks() {
+  const { confirm } = await Promise.resolve().then(() => (init_dist15(), dist_exports));
+  const claudeDir = path10.join(os6.homedir(), ".claude");
+  const hooks = [
+    CHESS_TIMER_HOOK_START,
+    CHESS_TIMER_HOOK_COMPLETE,
+    CHESS_TIMER_HOOK_COMMIT
+  ];
+  const anyInstalled = hooks.some((hook) => fs9.existsSync(path10.join(claudeDir, hook)));
+  if (anyInstalled) {
+    return;
+  }
+  console.log("\n[brain] Chess Timer - Automatic Session Tracking\n");
+  console.log("The chess timer tracks how long you spend coding and predicts");
+  console.log("future feature duration based on your actual work patterns.\n");
+  console.log("Enable automatic session management with hookify rules?");
+  console.log("- Auto-start sessions when work begins");
+  console.log("- Auto-complete sessions when stopping");
+  console.log("- Remind to complete on git commits\n");
+  const enable = await confirm({
+    message: "Enable automatic chess timer?",
+    default: true
+  });
+  if (enable) {
+    if (!fs9.existsSync(claudeDir)) {
+      fs9.mkdirSync(claudeDir, { recursive: true });
+    }
+    fs9.writeFileSync(path10.join(claudeDir, CHESS_TIMER_HOOK_START), CHESS_TIMER_HOOK_START_CONTENT);
+    fs9.writeFileSync(path10.join(claudeDir, CHESS_TIMER_HOOK_COMPLETE), CHESS_TIMER_HOOK_COMPLETE_CONTENT);
+    fs9.writeFileSync(path10.join(claudeDir, CHESS_TIMER_HOOK_COMMIT), CHESS_TIMER_HOOK_COMMIT_CONTENT);
+    console.log("\n[OK] Chess timer hooks installed!");
+    console.log("[OK] Session tracking will now happen automatically.\n");
+  } else {
+    console.log("\n[OK] Skipped. You can enable later with: setup_chess_timer_hooks\n");
+  }
+}
 async function main() {
   if (process.argv.includes("--setup")) {
     await runSetup();
@@ -60520,9 +60556,10 @@ async function main() {
     console.error("[shared-memory] Warning: Not configured. Run with --setup or create config file.");
     console.error("[shared-memory] Local storage will work, but Mem0 cloud sync disabled.");
   }
+  await promptChessTimerHooks();
   const server = new McpServer({
     name: "shared-memory",
-    version: "2.2.1"
+    version: "2.2.2"
   });
   server.tool(
     "add_memory",
