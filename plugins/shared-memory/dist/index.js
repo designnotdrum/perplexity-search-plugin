@@ -39,12 +39,82 @@ const stdio_js_1 = require("@modelcontextprotocol/sdk/server/stdio.js");
 const zod_1 = require("zod");
 const path = __importStar(require("path"));
 const os = __importStar(require("os"));
+const fs = __importStar(require("fs"));
 const core_1 = require("@brain-jar/core");
 const local_store_1 = require("./local-store");
 const summary_manager_1 = require("./summary-manager");
 const profile_1 = require("./profile");
 const chess_timer_1 = require("./chess-timer");
 const LOCAL_DB_PATH = path.join(os.homedir(), '.config', 'brain-jar', 'local.db');
+// Chess Timer Hookify Rules
+const CHESS_TIMER_HOOK_START = 'hookify.chess-timer-start.local.md';
+const CHESS_TIMER_HOOK_COMPLETE = 'hookify.chess-timer-complete.local.md';
+const CHESS_TIMER_HOOK_COMMIT = 'hookify.chess-timer-commit.local.md';
+const CHESS_TIMER_HOOK_START_CONTENT = `---
+name: chess-timer-start
+enabled: true
+event: prompt
+conditions:
+  - field: user_prompt
+    operator: regex_match
+    pattern: (implement|add|create|build|fix|refactor|update|write|develop|code|make|design|setup|configure)
+---
+
+🕐 **Work Session Start**
+
+User is requesting substantive work. **Before responding:**
+
+1. Call \`get_active_session\` to check status
+2. **If no session exists:** Call \`start_work_session\` with:
+   - \`work_type\`: feature | bugfix | refactor | docs | other
+   - \`description\`: Brief summary of the work
+   - \`complexity_rating\`: 1 (trivial) to 5 (complex)
+3. **If session is paused:** Call \`resume_work_session\`
+4. **If session is active:** Continue working
+
+Session tracking is automatic from this point - just work normally.
+`;
+const CHESS_TIMER_HOOK_COMPLETE_CONTENT = `---
+name: chess-timer-complete
+enabled: true
+event: stop
+---
+
+🕐 **Session Completion Check**
+
+Before stopping, **verify work session state:**
+
+1. Call \`get_active_session\`
+2. **If session is active:** Call \`complete_work_session\` with:
+   - \`notes\`: Brief summary of what was accomplished
+   - The session already has work_type and complexity_rating from start
+
+This records actual time spent and improves future estimates.
+
+**If you didn't complete the work:** Call \`pause_work_session\` instead with reason:
+- \`context_switch\` - Switching to different work
+- \`break\` - Taking a break
+- \`end_of_day\` - End of work session
+- \`unknown\` - Other reason
+`;
+const CHESS_TIMER_HOOK_COMMIT_CONTENT = `---
+name: chess-timer-commit
+enabled: true
+event: bash
+pattern: git\\s+commit
+---
+
+🕐 **Session Completion Opportunity**
+
+Git commit detected - work may be complete.
+
+**After commit succeeds:**
+1. Call \`get_active_session\`
+2. **If this commit completes the work:** Call \`complete_work_session\` with summary
+3. **If continuing with more work:** Leave session active
+
+Completing sessions after commits improves time estimates for similar future work.
+`;
 async function runSetup() {
     const { input } = await Promise.resolve().then(() => __importStar(require('@inquirer/prompts')));
     console.log('\n[brain] Shared Memory Setup\n');
@@ -121,7 +191,7 @@ async function main() {
     // Create MCP server
     const server = new mcp_js_1.McpServer({
         name: 'shared-memory',
-        version: '2.2.0',
+        version: '2.2.1',
     });
     // Register tools
     server.tool('add_memory', 'Store a memory with enriched context', {
@@ -1024,6 +1094,89 @@ async function main() {
                     }],
             };
         }
+    });
+    // --- Chess Timer Hooks Setup Tool ---
+    server.tool('setup_chess_timer_hooks', 'Install, uninstall, or check status of chess timer hookify rules for automatic session management', {
+        action: zod_1.z.enum(['install', 'uninstall', 'status']).optional().describe('Action to perform (default: status)'),
+    }, async (args) => {
+        const action = args.action || 'status';
+        const claudeDir = path.join(os.homedir(), '.claude');
+        // Ensure .claude directory exists
+        if (!fs.existsSync(claudeDir)) {
+            fs.mkdirSync(claudeDir, { recursive: true });
+        }
+        const hooks = [
+            { name: CHESS_TIMER_HOOK_START, content: CHESS_TIMER_HOOK_START_CONTENT },
+            { name: CHESS_TIMER_HOOK_COMPLETE, content: CHESS_TIMER_HOOK_COMPLETE_CONTENT },
+            { name: CHESS_TIMER_HOOK_COMMIT, content: CHESS_TIMER_HOOK_COMMIT_CONTENT },
+        ];
+        if (action === 'status') {
+            const statuses = hooks.map((hook) => {
+                const hookPath = path.join(claudeDir, hook.name);
+                const exists = fs.existsSync(hookPath);
+                if (exists) {
+                    const content = fs.readFileSync(hookPath, 'utf-8');
+                    const isEnabled = content.includes('enabled: true');
+                    return `✓ ${hook.name}: **${isEnabled ? 'enabled' : 'disabled'}**`;
+                }
+                else {
+                    return `✗ ${hook.name}: **not installed**`;
+                }
+            });
+            const allInstalled = hooks.every((hook) => fs.existsSync(path.join(claudeDir, hook.name)));
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: allInstalled
+                            ? `Chess timer hooks are **installed**:\n\n${statuses.join('\n')}\n\n**What they do:**\n- Auto-start sessions when work begins\n- Auto-complete sessions when stopping\n- Remind to complete on git commit\n\nTo uninstall: \`setup_chess_timer_hooks\` with action "uninstall"`
+                            : `Chess timer hooks are **not fully installed**:\n\n${statuses.join('\n')}\n\n**What they do:**\n- Auto-start sessions when work begins\n- Auto-complete sessions when stopping  \n- Remind to complete on git commit\n\nTo install: \`setup_chess_timer_hooks\` with action "install"`,
+                    },
+                ],
+            };
+        }
+        if (action === 'install') {
+            hooks.forEach((hook) => {
+                const hookPath = path.join(claudeDir, hook.name);
+                fs.writeFileSync(hookPath, hook.content);
+            });
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: `Chess timer hooks **installed**!\n\n**3 hooks activated:**\n- \`${CHESS_TIMER_HOOK_START}\` - Auto-start on work requests\n- \`${CHESS_TIMER_HOOK_COMPLETE}\` - Auto-complete when stopping\n- \`${CHESS_TIMER_HOOK_COMMIT}\` - Complete reminder on git commit\n\n**How it works:**\nWhen users say "implement X" or "fix Y", you'll get a reminder to start tracking. When you stop or commit, you'll be reminded to complete the session.\n\nThe chess timer now runs automatically!`,
+                    },
+                ],
+            };
+        }
+        if (action === 'uninstall') {
+            let removed = 0;
+            hooks.forEach((hook) => {
+                const hookPath = path.join(claudeDir, hook.name);
+                if (fs.existsSync(hookPath)) {
+                    fs.unlinkSync(hookPath);
+                    removed++;
+                }
+            });
+            return {
+                content: [
+                    {
+                        type: 'text',
+                        text: removed > 0
+                            ? `Chess timer hooks **uninstalled** (${removed} removed).\n\nYou can reinstall anytime with: \`setup_chess_timer_hooks\` with action "install".`
+                            : `Chess timer hooks were not installed.`,
+                    },
+                ],
+            };
+        }
+        return {
+            content: [
+                {
+                    type: 'text',
+                    text: `Unknown action: ${action}`,
+                },
+            ],
+        };
     });
     // Connect transport
     const transport = new stdio_js_1.StdioServerTransport();

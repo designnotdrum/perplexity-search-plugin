@@ -6780,12 +6780,12 @@ var require_dist = __commonJS({
         throw new Error(`Unknown format "${name}"`);
       return f;
     };
-    function addFormats(ajv, list, fs9, exportName) {
+    function addFormats(ajv, list, fs10, exportName) {
       var _a2;
       var _b;
       (_a2 = (_b = ajv.opts.code).formats) !== null && _a2 !== void 0 ? _a2 : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
       for (const f of list)
-        ajv.addFormat(f, fs9[f]);
+        ajv.addFormat(f, fs10[f]);
     }
     module2.exports = exports2 = formatsPlugin;
     Object.defineProperty(exports2, "__esModule", { value: true });
@@ -16753,7 +16753,7 @@ var require_form_data = __commonJS({
     var http = require("http");
     var https = require("https");
     var parseUrl = require("url").parse;
-    var fs9 = require("fs");
+    var fs10 = require("fs");
     var Stream = require("stream").Stream;
     var crypto3 = require("crypto");
     var mime = require_mime_types();
@@ -16820,7 +16820,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs9.stat(value.path, function(err, stat) {
+          fs10.stat(value.path, function(err, stat) {
             if (err) {
               callback(err);
               return;
@@ -30010,10 +30010,10 @@ var require_lib2 = __commonJS({
     exports2.analyse = analyse;
     var detectFile = (filepath, opts = {}) => new Promise((resolve2, reject) => {
       let fd;
-      const fs9 = (0, node_1.default)();
+      const fs10 = (0, node_1.default)();
       const handler = (err, buffer) => {
         if (fd) {
-          fs9.closeSync(fd);
+          fs10.closeSync(fd);
         }
         if (err) {
           reject(err);
@@ -30025,9 +30025,9 @@ var require_lib2 = __commonJS({
       };
       const sampleSize = (opts === null || opts === void 0 ? void 0 : opts.sampleSize) || 0;
       if (sampleSize > 0) {
-        fd = fs9.openSync(filepath, "r");
+        fd = fs10.openSync(filepath, "r");
         let sample = Buffer.allocUnsafe(sampleSize);
-        fs9.read(fd, sample, 0, sampleSize, opts.offset, (err, bytesRead) => {
+        fs10.read(fd, sample, 0, sampleSize, opts.offset, (err, bytesRead) => {
           if (err) {
             handler(err, null);
           } else {
@@ -30039,22 +30039,22 @@ var require_lib2 = __commonJS({
         });
         return;
       }
-      fs9.readFile(filepath, handler);
+      fs10.readFile(filepath, handler);
     });
     exports2.detectFile = detectFile;
     var detectFileSync = (filepath, opts = {}) => {
-      const fs9 = (0, node_1.default)();
+      const fs10 = (0, node_1.default)();
       if (opts && opts.sampleSize) {
-        const fd = fs9.openSync(filepath, "r");
+        const fd = fs10.openSync(filepath, "r");
         let sample = Buffer.allocUnsafe(opts.sampleSize);
-        const bytesRead = fs9.readSync(fd, sample, 0, opts.sampleSize, opts.offset);
+        const bytesRead = fs10.readSync(fd, sample, 0, opts.sampleSize, opts.offset);
         if (bytesRead < opts.sampleSize) {
           sample = sample.subarray(0, bytesRead);
         }
-        fs9.closeSync(fd);
+        fs10.closeSync(fd);
         return (0, exports2.detect)(sample);
       }
-      return (0, exports2.detect)(fs9.readFileSync(filepath));
+      return (0, exports2.detect)(fs10.readFileSync(filepath));
     };
     exports2.detectFileSync = detectFileSync;
     exports2.default = {
@@ -58162,6 +58162,7 @@ var StdioServerTransport = class {
 // plugins/shared-memory/src/index.ts
 var path10 = __toESM(require("path"));
 var os6 = __toESM(require("os"));
+var fs9 = __toESM(require("fs"));
 
 // packages/core/src/config.ts
 var fs = __toESM(require("fs"));
@@ -60389,6 +60390,74 @@ var Predictor = class {
 
 // plugins/shared-memory/src/index.ts
 var LOCAL_DB_PATH = path10.join(os6.homedir(), ".config", "brain-jar", "local.db");
+var CHESS_TIMER_HOOK_START = "hookify.chess-timer-start.local.md";
+var CHESS_TIMER_HOOK_COMPLETE = "hookify.chess-timer-complete.local.md";
+var CHESS_TIMER_HOOK_COMMIT = "hookify.chess-timer-commit.local.md";
+var CHESS_TIMER_HOOK_START_CONTENT = `---
+name: chess-timer-start
+enabled: true
+event: prompt
+conditions:
+  - field: user_prompt
+    operator: regex_match
+    pattern: (implement|add|create|build|fix|refactor|update|write|develop|code|make|design|setup|configure)
+---
+
+\u{1F550} **Work Session Start**
+
+User is requesting substantive work. **Before responding:**
+
+1. Call \`get_active_session\` to check status
+2. **If no session exists:** Call \`start_work_session\` with:
+   - \`work_type\`: feature | bugfix | refactor | docs | other
+   - \`description\`: Brief summary of the work
+   - \`complexity_rating\`: 1 (trivial) to 5 (complex)
+3. **If session is paused:** Call \`resume_work_session\`
+4. **If session is active:** Continue working
+
+Session tracking is automatic from this point - just work normally.
+`;
+var CHESS_TIMER_HOOK_COMPLETE_CONTENT = `---
+name: chess-timer-complete
+enabled: true
+event: stop
+---
+
+\u{1F550} **Session Completion Check**
+
+Before stopping, **verify work session state:**
+
+1. Call \`get_active_session\`
+2. **If session is active:** Call \`complete_work_session\` with:
+   - \`notes\`: Brief summary of what was accomplished
+   - The session already has work_type and complexity_rating from start
+
+This records actual time spent and improves future estimates.
+
+**If you didn't complete the work:** Call \`pause_work_session\` instead with reason:
+- \`context_switch\` - Switching to different work
+- \`break\` - Taking a break
+- \`end_of_day\` - End of work session
+- \`unknown\` - Other reason
+`;
+var CHESS_TIMER_HOOK_COMMIT_CONTENT = `---
+name: chess-timer-commit
+enabled: true
+event: bash
+pattern: git\\s+commit
+---
+
+\u{1F550} **Session Completion Opportunity**
+
+Git commit detected - work may be complete.
+
+**After commit succeeds:**
+1. Call \`get_active_session\`
+2. **If this commit completes the work:** Call \`complete_work_session\` with summary
+3. **If continuing with more work:** Leave session active
+
+Completing sessions after commits improves time estimates for similar future work.
+`;
 async function runSetup() {
   const { input } = await Promise.resolve().then(() => (init_dist15(), dist_exports));
   console.log("\n[brain] Shared Memory Setup\n");
@@ -60453,7 +60522,7 @@ async function main() {
   }
   const server = new McpServer({
     name: "shared-memory",
-    version: "2.2.0"
+    version: "2.2.1"
   });
   server.tool(
     "add_memory",
@@ -61416,6 +61485,117 @@ ${m.content}`
           }]
         };
       }
+    }
+  );
+  server.tool(
+    "setup_chess_timer_hooks",
+    "Install, uninstall, or check status of chess timer hookify rules for automatic session management",
+    {
+      action: external_exports3.enum(["install", "uninstall", "status"]).optional().describe("Action to perform (default: status)")
+    },
+    async (args) => {
+      const action = args.action || "status";
+      const claudeDir = path10.join(os6.homedir(), ".claude");
+      if (!fs9.existsSync(claudeDir)) {
+        fs9.mkdirSync(claudeDir, { recursive: true });
+      }
+      const hooks = [
+        { name: CHESS_TIMER_HOOK_START, content: CHESS_TIMER_HOOK_START_CONTENT },
+        { name: CHESS_TIMER_HOOK_COMPLETE, content: CHESS_TIMER_HOOK_COMPLETE_CONTENT },
+        { name: CHESS_TIMER_HOOK_COMMIT, content: CHESS_TIMER_HOOK_COMMIT_CONTENT }
+      ];
+      if (action === "status") {
+        const statuses = hooks.map((hook) => {
+          const hookPath = path10.join(claudeDir, hook.name);
+          const exists = fs9.existsSync(hookPath);
+          if (exists) {
+            const content = fs9.readFileSync(hookPath, "utf-8");
+            const isEnabled = content.includes("enabled: true");
+            return `\u2713 ${hook.name}: **${isEnabled ? "enabled" : "disabled"}**`;
+          } else {
+            return `\u2717 ${hook.name}: **not installed**`;
+          }
+        });
+        const allInstalled = hooks.every((hook) => fs9.existsSync(path10.join(claudeDir, hook.name)));
+        return {
+          content: [
+            {
+              type: "text",
+              text: allInstalled ? `Chess timer hooks are **installed**:
+
+${statuses.join("\n")}
+
+**What they do:**
+- Auto-start sessions when work begins
+- Auto-complete sessions when stopping
+- Remind to complete on git commit
+
+To uninstall: \`setup_chess_timer_hooks\` with action "uninstall"` : `Chess timer hooks are **not fully installed**:
+
+${statuses.join("\n")}
+
+**What they do:**
+- Auto-start sessions when work begins
+- Auto-complete sessions when stopping  
+- Remind to complete on git commit
+
+To install: \`setup_chess_timer_hooks\` with action "install"`
+            }
+          ]
+        };
+      }
+      if (action === "install") {
+        hooks.forEach((hook) => {
+          const hookPath = path10.join(claudeDir, hook.name);
+          fs9.writeFileSync(hookPath, hook.content);
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Chess timer hooks **installed**!
+
+**3 hooks activated:**
+- \`${CHESS_TIMER_HOOK_START}\` - Auto-start on work requests
+- \`${CHESS_TIMER_HOOK_COMPLETE}\` - Auto-complete when stopping
+- \`${CHESS_TIMER_HOOK_COMMIT}\` - Complete reminder on git commit
+
+**How it works:**
+When users say "implement X" or "fix Y", you'll get a reminder to start tracking. When you stop or commit, you'll be reminded to complete the session.
+
+The chess timer now runs automatically!`
+            }
+          ]
+        };
+      }
+      if (action === "uninstall") {
+        let removed = 0;
+        hooks.forEach((hook) => {
+          const hookPath = path10.join(claudeDir, hook.name);
+          if (fs9.existsSync(hookPath)) {
+            fs9.unlinkSync(hookPath);
+            removed++;
+          }
+        });
+        return {
+          content: [
+            {
+              type: "text",
+              text: removed > 0 ? `Chess timer hooks **uninstalled** (${removed} removed).
+
+You can reinstall anytime with: \`setup_chess_timer_hooks\` with action "install".` : `Chess timer hooks were not installed.`
+            }
+          ]
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Unknown action: ${action}`
+          }
+        ]
+      };
     }
   );
   const transport = new StdioServerTransport();
